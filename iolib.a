@@ -1,0 +1,89 @@
+#include <iolib.h>
+
+/**
+ * Opens file 'pathname'
+ */
+int Open(char *pathname) {
+    return 0;
+}
+
+/**
+ * Closes file specified by fd
+ */
+int Close(int fd) {
+    return 0;
+}
+
+/**
+ * Copies 'size' bytes from file 'fd' to '*buf'.
+ */
+int Read(int fd, void *buf, int size) {
+    return 0;
+}
+
+/**
+ * Copies 'size' bytes from '*buf' to file 'fd'.
+ */
+int Write(int fd, void *buf, int size) {
+    return 0;
+}
+
+/**
+ * Changes position of the open file
+ */
+int Seek(int fd, int offset, int whence) {
+    return 0;
+}
+
+/**
+ * Creates hard link from 'newname' to 'oldname'
+ */
+int Link(char *oldname, char *newname) {
+    return 0;
+}
+
+/**
+ * Removes directory entry for 'pathname'
+ */
+int Unlink(char *pathname) {
+    return 0;
+}
+
+/**
+ * Makes new directory at 'pathname'
+ */
+int MkDir(char *pathname) {
+    return 0;
+}
+
+/**
+ * Deletes the existing directory at 'pathname'
+ */
+int RmDir(char *pathname) {
+    return 0;
+}
+
+int ChDir(char *pathname) {
+    return 0;
+}
+
+/**
+ * Writes to 'statbuf'
+ */
+int Stat(char *pathname, struct Stat *statbuf) {
+    return 0;
+}
+
+/**
+ * Writes dirty caches to the disk so they are not lost
+ */
+int Sync(void) {
+    return 0;
+}
+
+/**
+ * Syncs cache and closes the library
+ */
+int Shutdown(void) {
+    return 0;
+}
