@@ -41,8 +41,8 @@ ALL = yfs iolib.a $(TEST)
 #	YFS server, and YFS_SRCS should  be a list of the corresponding
 #	source files that make up your serever.
 #
-YFS_OBJS = example1.o example2.o
-YFS_SRCS = sample1.c sample2.c
+YFS_OBJS = yfs.o
+YFS_SRCS = yfs.c
 
 #
 #	You must also modify the IOLIB_OBJS and IOLIB_SRCS definitions
@@ -50,8 +50,8 @@ YFS_SRCS = sample1.c sample2.c
 #	your YFS library, and IOLIB_SRCS should  be a list of the
 #	corresponding source files that make up your library.
 #
-IOLIB_OBJS = example3.o example4.o
-IOLIB_SRCS = example3.c example4.c
+IOLIB_OBJS = iolib.o
+IOLIB_SRCS = iolib.c
 
 #
 #	You should not have to modify anything else in this Makefile
