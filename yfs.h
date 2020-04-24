@@ -6,4 +6,12 @@ struct msg {
   char **path_pointer;
   char padding[24];
 };
+
+struct cache {
+
+};
+
+struct linkedList {
+
+};
 #endif //COMP421_LAB3_YFS_H

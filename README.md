@@ -75,7 +75,7 @@
 * Maintains an <em>open file table</em> for keeping track of open files. Can be represented by an array of pointers to each file's data structure representation.
 * Index in this array serves as file descriptor
 
-###File System Calls
+### File System Calls
 * __int Open(char *pathname)__  - Used to open the string of pathname.Returns a fd integer, for future uses for referring to the opened file. File descriptor must be lowest possible value.
 
 * __int Close(int fd)__ - Closes the file refered to by <em>fd</em>
@@ -95,5 +95,14 @@ Traveling before the start of the file results in an error. Returns the new posi
 * __int Stat(char * pathname, struct Stat * statbuf)__ - Returns information about the file at <em>pathname</em> to the struct at <em>statbuf</em>.
 * __int Sync(void)__ - Writes all dirty cached inodes back to their corresponding disk blocks, and the dirty cached disk blocks back to the disk.
 * __int Shutdown(void)__ - Syncs the cache, and then calls the Yalnix Exit. 
+
 ## To Do List
-[ ]
+* [x] Obtain Header
+* [x] Obtain Root Inode
+* [ ] Implement stack based caches for inodes and blocks
+    * [ ] Implement stack search
+    * [ ] Implement stack entry raise
+* [ ] Get block or inode by number
+* [ ] Get list of free inodes
+* [ ] Implement Message passing between processes
+* [ ] 

@@ -64,7 +64,7 @@ LANG = gcc
 PUBLIC_DIR = /clear/courses/comp421/pub
 
 CPPFLAGS = -I$(PUBLIC_DIR)/include
-CFLAGS = -g -Wall -Wextra -Werror
+CFLAGS = -g -Wall -Wextra
 
 %: %.o
 	$(LINK.o) -o $@ $^ iolib.a $(LOADLIBES) $(LDLIBS)
