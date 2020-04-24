@@ -99,10 +99,9 @@ Traveling before the start of the file results in an error. Returns the new posi
 ## To Do List
 * [x] Obtain Header
 * [x] Obtain Root Inode
-* [ ] Implement stack based caches for inodes and blocks
-    * [ ] Implement stack search
-    * [ ] Implement stack entry raise
-* [ ] Get block or inode by number
+* [x] Implement stack based caches for inodes and blocks
+    * [x] Implement stack search
+    * [x] Implement stack entry raise
+* [x] Get block or inode by number
 * [ ] Get list of free inodes
 * [ ] Implement Message passing between processes
-* [ ] 
