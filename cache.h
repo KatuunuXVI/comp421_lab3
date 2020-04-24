@@ -26,4 +26,21 @@ struct inode_cache_entry {
     struct inode_cache_entry* prev; //Previous Inode in Stack
     struct inode_cache_entry* next; //Next Inode in Stack
 };
+
+struct inode_cache *CreateInodeCache();
+
+void AddToInodeCache(struct inode_cache *stack, struct inode *in, int inumber);
+
+void RaiseInodeCachePosition(struct inode_cache* stack, struct inode_cache_entry* recent_access);
+
+void PrintInodeCache(struct inode_cache* stack);
+
+struct block_cache *CreateBlockCache();
+
+void AddToBlockCache(struct block_cache *stack, void* block, int block_number);
+
+void RaiseBlockCachePosition(struct block_cache *stack, struct block_cache_entry* recent_access);
+
+void PrintBlockCache(struct block_cache* stack);
+
 #endif //COMP421_LAB3_CACHE_H

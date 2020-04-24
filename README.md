@@ -103,5 +103,6 @@ Traveling before the start of the file results in an error. Returns the new posi
     * [x] Implement stack search
     * [x] Implement stack entry raise
 * [x] Get block or inode by number
-* [ ] Get list of free inodes
-* [ ] Implement Message passing between processes
+* [x] Get list of free inodes
+* [ ] Get list of free blocks
+* [ ] Fork and Execute argument process
