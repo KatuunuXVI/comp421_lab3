@@ -2,19 +2,26 @@
 
 ## Test Cases
 
-- [ ] mkyfs.c
 - [ ] sample1.c
   - Create, Write, Close 6 files
 - [ ] sample2.c
   - Create and Close 32 empty files
 - [ ] tcreate.c
+  - Create, Sync, Delay
 - [ ] tcreate2.c
-- [ ] tlink.c
-- [ ] tls.c
+  - Create 4 files
 - [ ] topen2.c
+  - Open 4 files created from tcreate2.c
+- [ ] tlink.c
+  - Create and Link "/a" with "/b"
+- [ ] tls.c
+  - ChDir, Open, Read, Stat, and ReadLink
 - [ ] tsymlink.c
+  - Create, SymLink, ReadLink, Stat and more Symlink
 - [ ] tunlink2.c
+  - Unlink 4 files
 - [ ] writeread.c
+  - Create, Write, Close, Sync, Open, Read, and Close
 
 ## Notes
 
