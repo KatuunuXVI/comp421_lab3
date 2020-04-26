@@ -43,6 +43,11 @@ void *GetBlock(int block_num) {
     return block_buffer;
 }
 
+/**
+ * Searches for and returns the inode based on the number given
+ * @param inode_num The inode being requested
+ * @return A pointer to where the inode is
+ */
 struct inode* GetInode(int inode_num) {
     /** Inode number must be in valid range*/
     assert(inode_num >= 1 && inode_num <= header->num_inodes);
@@ -55,12 +60,12 @@ struct inode* GetInode(int inode_num) {
         current = current->next;
     }
     if (found) {
-        RaiseInodeCachePosition(inode_stack,current);
+        RaiseInodeCachePosition(inode_stack, current);
         return current->in;
     }
     /**If it's not in the Inode Cache, check the Block */
-    void *inode_block = GetBlock((inode_num / 8) + 1);
-    AddToInodeCache(inode_stack,(struct inode *)inode_block + (inode_num % 8),inode_num); /**Add inode to cache, when accessed*/
+    void* inode_block = GetBlock((inode_num / 8) + 1);
+    AddToInodeCache(inode_stack, (struct inode *)inode_block + (inode_num % 8), inode_num); /**Add inode to cache, when accessed*/
     return (struct inode *)inode_block + (inode_num % 8);
 }
 
@@ -72,7 +77,7 @@ void GetFreeInodeList() {
     int i;
     for (i = 1; i <= header->num_inodes; i ++) {
         struct inode *next = GetInode(i);
-        if (next->type == INODE_FREE) pushToBuffer(free_inode_list,i);
+        if (next->type == INODE_FREE) pushToBuffer(free_inode_list, i);
     }
 }
 
@@ -97,11 +102,6 @@ int main(int argc, char **argv) {
     GetFreeInodeList();
     // printBuffer(free_inode_list);
     // PrintInodeCache(inode_stack);
-
-    int i;
-    struct dir_entry *block7 = GetBlock(7);
-    printf("block7->inum: %d\n", block7->inum);
-    printf("block7->name: %s\n", block7->name);
 
     int pid;
   	if ((pid = Fork()) < 0) {

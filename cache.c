@@ -23,7 +23,7 @@ void AddToInodeCache(struct inode_cache *stack, struct inode *in, int inumber) {
     struct inode_cache_entry* item = malloc(sizeof(struct inode_cache_entry));
     item->inode_number = inumber;
     item->in = in;
-    if(!stack->size) {
+    if (!stack->size) {
         /** If the stack is empty the entry becomes both the top and base*/
         stack->base = item;
         stack->top = item;
@@ -33,7 +33,7 @@ void AddToInodeCache(struct inode_cache *stack, struct inode *in, int inumber) {
         stack->top->prev = item;
         stack->top = item;
     }
-    if(stack->size == INODE_CACHESIZE) {
+    if (stack->size == INODE_CACHESIZE) {
         /**If the stack is full, the base is de-allocated and the pointers to it are nullified */
         stack->base = stack->base->prev;
         free(stack->base->next);
@@ -64,8 +64,8 @@ void RaiseInodeCachePosition(struct inode_cache* stack, struct inode_cache_entry
  */
 void PrintInodeCache(struct inode_cache* stack) {
     struct inode_cache_entry* position = stack->top;
-    while(position != NULL) {
-        printf("| %d |\n",position->inode_number);
+    while (position != NULL) {
+        printf("| %d |\n", position->inode_number);
         position = position->next;
     }
 }
@@ -91,7 +91,7 @@ void AddToBlockCache(struct block_cache *stack, void* block, int block_number) {
     item->block = block;
 
     /** If the stack is empty the entry becomes both the top and base*/
-    if(!stack->size) {
+    if (!stack->size) {
         stack->base = item;
         stack->top = item;
     } else {
@@ -102,7 +102,7 @@ void AddToBlockCache(struct block_cache *stack, void* block, int block_number) {
     }
 
     /**If the cache is at max size, the last used block is removed. */
-    if(stack->size == BLOCK_CACHESIZE) {
+    if (stack->size == BLOCK_CACHESIZE) {
         stack->base = stack->base->prev;
         free(stack->base->next);
         stack->base->next = NULL;
@@ -126,8 +126,8 @@ void RaiseBlockCachePosition(struct block_cache *stack, struct block_cache_entry
  */
  void PrintBlockCache(struct block_cache* stack) {
     struct block_cache_entry* position = stack->top;
-    while(position != NULL) {
-        printf("| %d |\n",position->block_number);
+    while (position != NULL) {
+        printf("| %d |\n", position->block_number);
         position = position->next;
     }
  }

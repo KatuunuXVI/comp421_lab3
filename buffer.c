@@ -16,35 +16,35 @@ struct buffer *getBuffer(int size) {
 }
 
 void pushToBuffer(struct buffer *buf, int i) {
-    if(buf->full) {
+    if (buf->full) {
         return;
     }
-    if(buf->empty) {
+    if (buf->empty) {
         buf->empty = 0;
     }
     buf->b[buf->in] = i;
     buf->in++;
-    if(buf->in >= buf->size) {
+    if (buf->in >= buf->size) {
         buf->in = 0;
     }
-    if(buf->in == buf->out) {
+    if (buf->in == buf->out) {
         buf->full = 1;
     }
 }
 
 int popFromBuffer(struct buffer *buf) {
-    if(buf->empty) {
+    if (buf->empty) {
         return '\0';
     }
     char next = buf->b[buf->out];
     buf->out++;
-    if(buf->out >= buf->size) {
+    if (buf->out >= buf->size) {
         buf->out = 0;
     }
-    if(buf->out == buf->in) {
+    if (buf->out == buf->in) {
         buf->empty = 1;
     }
-    if(buf->full) {
+    if (buf->full) {
         buf->full = 0;
     }
     return next;
@@ -52,24 +52,24 @@ int popFromBuffer(struct buffer *buf) {
 
 void printBuffer(struct buffer *buf) {
     int i;
-    if(buf->out < buf->in) {
-        printf("Non-Circular: %d -> %d\n",buf->out,buf->in);
+    if (buf->out < buf->in) {
+        printf("Non-Circular: %d -> %d\n", buf->out, buf->in);
         printf("[");
-        for(i = buf->out; i < buf->in-1; i++) {
+        for (i = buf->out; i < buf->in-1; i++) {
             printf("%d, ", buf->b[i]);
         }
-        printf("%d]\n",buf->b[buf->in-1]);
+        printf("%d]\n", buf->b[buf->in-1]);
     } else {
-        printf("Non Circular: %d\n",buf->out < buf->in);
-        printf("Circular: %d\n",buf->out > buf->in);
-        printf("Circular: %d -> %d -> %d -> %d\n",buf->out,buf->size,0,buf->in);
+        printf("Non Circular: %d\n", buf->out < buf->in);
+        printf("Circular: %d\n", buf->out > buf->in);
+        printf("Circular: %d -> %d -> %d -> %d\n", buf->out, buf->size, 0, buf->in);
         printf("[");
-        for(i = buf->out; i <= buf->size; i++) {
+        for (i = buf->out; i <= buf->size; i++) {
             printf("%d, ", buf->b[i]);
         }
-        for(i = 0; i < buf->in-1; i++) {
+        for (i = 0; i < buf->in-1; i++) {
             printf("%d, ", buf->b[i]);
         }
-        printf("%d]\n",buf->b[buf->in-1]);
+        printf("%d]\n", buf->b[buf->in-1]);
     }
 }

@@ -198,8 +198,8 @@ int Seek(int fd, int offset, int whence) {
  * Creates hard link from 'newname' to 'oldname'
  */
 int Link(char *oldname, char *newname) {
-    printf("Old Name: %s\n",oldname);
-    printf("New Name: %s\n",newname);
+    printf("Old Name: %s\n", oldname);
+    printf("New Name: %s\n", newname);
     return 0;
 }
 
@@ -207,7 +207,7 @@ int Link(char *oldname, char *newname) {
  * Removes directory entry for 'pathname'
  */
 int Unlink(char *pathname) {
-    printf("Pathname: %s\n",pathname);
+    printf("Pathname: %s\n", pathname);
     return 0;
 }
 
@@ -215,7 +215,7 @@ int Unlink(char *pathname) {
  * Makes new directory at 'pathname'
  */
 int MkDir(char *pathname) {
-    printf("Pathname: %s\n",pathname);
+    printf("Pathname: %s\n", pathname);
     return 0;
 }
 
@@ -223,12 +223,12 @@ int MkDir(char *pathname) {
  * Deletes the existing directory at 'pathname'
  */
 int RmDir(char *pathname) {
-    printf("Pathname: %s\n",pathname);
+    printf("Pathname: %s\n", pathname);
     return 0;
 }
 
 int ChDir(char *pathname) {
-    printf("Pathname: %s\n",pathname);
+    printf("Pathname: %s\n", pathname);
     return 0;
 }
 
@@ -236,7 +236,7 @@ int ChDir(char *pathname) {
  * Writes to 'statbuf'
  */
 int Stat(char *pathname, struct Stat *statbuf) {
-    printf("Pathname: %s\n",pathname);
+    printf("Pathname: %s\n", pathname);
     printf("Stat Address: %p\n", statbuf);
     return 0;
 }
