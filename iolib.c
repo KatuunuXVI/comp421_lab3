@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <comp421/iolib.h>
+#include "path.h"
 
 /*
  * Given pathname, create a linked list of parsed components
