@@ -1,0 +1,19 @@
+# Ignore all
+*
+
+# Unignore all with extensions
+!*.*
+
+# Unignore all dirs
+!*/
+
+# Ignore objects
+*.o
+
+# Ignore DISK created from format
+DISK
+
+# Ignore all Trace files
+TRACE
+TTYLOG
+TTYLOG.*
