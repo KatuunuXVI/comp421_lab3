@@ -29,19 +29,22 @@
  */
 // FileDescriptor GetFileDescriptor(int fd);
 
+/*
+ * Get current directory inode
+ */
+// int GetCurrentDirectory(int inum);
+
+/*
+ * Set current directory inode
+ */
+// int SetCurrentDirectory(int inum);
+// Or just have a global variable here
+
 /**
  * Creates and opens new file named pathname.
  */
 int Create(char *pathname) {
     TracePrintf(10, "\t┌─ [Create] path: %s\n", pathname);
-    /*
-     * TODO:
-     * - Parse pathname and ensure all non-last components exist
-     * - If named file already exists, set its size as 0 and prepare to override
-     * - Error if creating a file with the same name as existing directory
-     * - Return lowest available file descriptor
-     */
-
     /*
     // Verify against pathname max length
 
@@ -65,12 +68,22 @@ int Create(char *pathname) {
 
     // If target_inum is found
     // Return ERROR if existing file is directory
-    // Send TruncateFile message to file server
+    // Request Truncate to file server
+    Send the following data to file server
+    - Type: TruncateFile
+    - Arg1: inode
+    and expect the following data back
+    - Data1: Success/Fail
+
     // return with file descriptor
 
     // If target_inum is not found
     // Return ERROR if not found target_inum is not last component of path
     // Create New File
+    Send the following data to file server
+    - Type: CreateFile
+    - Arg1: filename
+    - Arg2: parent_inum
     // return with file descriptor
     */
 
@@ -215,7 +228,24 @@ int Unlink(char *pathname) {
  * Makes new directory at 'pathname'
  */
 int MkDir(char *pathname) {
-    printf("Pathname: %s\n", pathname);
+    TracePrintf(10, "\t┌─ [MkDir] path: %s\n", pathname);
+    /*
+    // Verify against pathname max length
+
+    // Iterate through tokenized pathname
+
+    // If target_inum is found return ERROR
+
+    // If target_inum is not found, return ERROR if not found target_inum is not last component
+
+    // Create new directory
+    Send the following data to file server
+    - Type: CreateDir
+    - Arg1: dir_name
+    - Arg2: parent_inum
+    */
+
+    TracePrintf(10, "\t└─ [MkDir]\n\n");
     return 0;
 }
 
@@ -223,12 +253,32 @@ int MkDir(char *pathname) {
  * Deletes the existing directory at 'pathname'
  */
 int RmDir(char *pathname) {
-    printf("Pathname: %s\n", pathname);
+    TracePrintf(10, "\t┌─ [RmDir] path: %s\n", pathname);
+    /*
+    // Verify against pathname max length
+
+    // Create an iterator through tokenized pathname
+
+    // Return ERROR if target_inum not found
+
+    // Request server to delete directory
+    */
+    TracePrintf(10, "\t└─ [RmDir]\n\n");
     return 0;
 }
 
 int ChDir(char *pathname) {
-    printf("Pathname: %s\n", pathname);
+    TracePrintf(10, "\t┌─ [ChDir] path: %s\n", pathname);
+    /*
+    // Verify against pathname max length
+
+    // Create an iterator through tokenized pathname
+
+    // Return ERROR if target_inum not found
+
+    // Update current directory inode
+    */
+    TracePrintf(10, "\t└─ [ChDir]\n\n");
     return 0;
 }
 
@@ -236,8 +286,21 @@ int ChDir(char *pathname) {
  * Writes to 'statbuf'
  */
 int Stat(char *pathname, struct Stat *statbuf) {
-    printf("Pathname: %s\n", pathname);
-    printf("Stat Address: %p\n", statbuf);
+    TracePrintf(10, "\t┌─ [Stat] path: %s\n", pathname);
+    /*
+    // Verify against pathname max length
+
+    // Create an iterator through tokenized pathname
+
+    // Return ERROR if target_inum is not found
+
+    // Get file stat from either GetFile or GetFileStat
+    - Data1: inum
+    - Data2: type
+    - Data3: size
+    - Data4: nlink
+    */
+    TracePrintf(10, "\t└─ [Stat]\n\n");
     return 0;
 }
 
