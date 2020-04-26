@@ -43,6 +43,11 @@ void *GetBlock(int block_num) {
     return block_buffer;
 }
 
+/**
+ * Searches for and returns the inode based on the number given
+ * @param inode_num The inode being requested
+ * @return A pointer to where the inode is
+ */
 struct inode* GetInode(int inode_num) {
     /** Inode number must be in valid range*/
     assert(inode_num >= 1 && inode_num <= header->num_inodes);
