@@ -2,7 +2,7 @@
 #include <comp421/iolib.h>
 
 int Create(char *pathname) {
-    printf("Pathname: %s\n",pathname);
+    printf("Pathname: %s\n", pathname);
     return 0;
 }
 
@@ -10,7 +10,7 @@ int Create(char *pathname) {
  * Opens file 'pathname'
  */
 int Open(char *pathname) {
-    printf("Pathname: %s\n",pathname);
+    printf("Pathname: %s\n", pathname);
     return 0;
 }
 
@@ -18,7 +18,7 @@ int Open(char *pathname) {
  * Closes file specified by fd
  */
 int Close(int fd) {
-    printf("File Descriptor: %d\n",fd);
+    printf("File Descriptor: %d\n", fd);
     return 0;
 }
 
@@ -28,9 +28,9 @@ int Close(int fd) {
  * Copies 'size' bytes from file 'fd' to '*buf'.
  */
 int Read(int fd, void *buf, int size) {
-    printf("File Descriptor: %d\n",fd);
-    printf("Size: %d\n",size);
-    printf("Address: %p\n",buf);
+    printf("File Descriptor: %d\n", fd);
+    printf("Size: %d\n", size);
+    printf("Address: %p\n", buf);
     return 0;
 }
 
@@ -38,9 +38,9 @@ int Read(int fd, void *buf, int size) {
  * Copies 'size' bytes from '*buf' to file 'fd'.
  */
 int Write(int fd, void *buf, int size) {
-    printf("File Descriptor: %d\n",fd);
-    printf("Size: %d\n",size);
-    printf("Address: %p\n",buf);
+    printf("File Descriptor: %d\n", fd);
+    printf("Size: %d\n", size);
+    printf("Address: %p\n", buf);
     return 0;
 }
 
@@ -48,9 +48,9 @@ int Write(int fd, void *buf, int size) {
  * Changes position of the open file
  */
 int Seek(int fd, int offset, int whence) {
-    printf("File Descriptor: %d\n",fd);
-    printf("Offset: %d\n",offset);
-    printf("Whence: %d\n",whence);
+    printf("File Descriptor: %d\n", fd);
+    printf("Offset: %d\n", offset);
+    printf("Whence: %d\n", whence);
     return 0;
 }
 
@@ -58,8 +58,8 @@ int Seek(int fd, int offset, int whence) {
  * Creates hard link from 'newname' to 'oldname'
  */
 int Link(char *oldname, char *newname) {
-    printf("Old Name: %s\n",oldname);
-    printf("New Name: %s\n",newname);
+    printf("Old Name: %s\n", oldname);
+    printf("New Name: %s\n", newname);
     return 0;
 }
 
@@ -67,7 +67,7 @@ int Link(char *oldname, char *newname) {
  * Removes directory entry for 'pathname'
  */
 int Unlink(char *pathname) {
-    printf("Pathname: %s\n",pathname);
+    printf("Pathname: %s\n", pathname);
     return 0;
 }
 
@@ -75,7 +75,7 @@ int Unlink(char *pathname) {
  * Makes new directory at 'pathname'
  */
 int MkDir(char *pathname) {
-    printf("Pathname: %s\n",pathname);
+    printf("Pathname: %s\n", pathname);
     return 0;
 }
 
@@ -83,12 +83,12 @@ int MkDir(char *pathname) {
  * Deletes the existing directory at 'pathname'
  */
 int RmDir(char *pathname) {
-    printf("Pathname: %s\n",pathname);
+    printf("Pathname: %s\n", pathname);
     return 0;
 }
 
 int ChDir(char *pathname) {
-    printf("Pathname: %s\n",pathname);
+    printf("Pathname: %s\n", pathname);
     return 0;
 }
 
@@ -96,7 +96,7 @@ int ChDir(char *pathname) {
  * Writes to 'statbuf'
  */
 int Stat(char *pathname, struct Stat *statbuf) {
-    printf("Pathname: %s\n",pathname);
+    printf("Pathname: %s\n", pathname);
     printf("Stat Address: %p\n", statbuf);
     return 0;
 }
