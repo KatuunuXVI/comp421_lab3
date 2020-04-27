@@ -1,5 +1,18 @@
 # comp421_lab3
 
+## Variables
+
+- BLOCKSIZE/SECTORSIZE: 512
+- NUMBLOCKS/NUMSECTORS: 1426
+- INODESIZE: 64
+- NUM_DIRECT: 12
+- MAXPATHNAMELEN: 256
+- MAXSYMLINKS: 20
+- BLOCK_CACHESIZE: 32
+- INODE_CACHESIZE: 16
+- MAX_OPEN_FILES: 16
+- FILE_SERVER: 1
+
 ## Test Cases
 
 - [ ] sample1.c
@@ -54,7 +67,7 @@
   - Has an array of block numbers pointing to the last blocks where the file is contained.
   - Only one can be used for every file. Extending a file past this point should result in an error
 
-###Data Blocks and Directories
+### Data Blocks and Directories
 
 - Defined by <em>num_blocks</em> - <em>num_inodes</em>
 - Root directory refered to by ROOTINODE
@@ -71,7 +84,7 @@
   - '..' - Has name, '..', and the inode of the parent directory.
   - For the root directory, '.' and '..' are identical.
 
-###Symbolic Links
+### Symbolic Links
 
 - A symbolic link is similar to a regular file, but it's contents are entirely the filename of the file it links to.
 - It may point to an absolute or relative filepath.
@@ -81,7 +94,7 @@
 - If more than MAXSYMLINKS are encountered in a filepath, the Open process should be terminated and return an error.
 - If a symbolic link is in
 
-###Yalnix Kernel Calls
+### Yalnix Kernel Calls
 
 - **int ReadSector(int sectornum, void \*buf)** - Reads <em>sectornum</em> into the address at buf. <em>buf</em> must be SECTORSIZE bytes. Calling process is blocked until the process completes. Returns 0 if it completes correctly, ERROR if <em>sectornum</em> is invalid or <em>buf</em> cannot be written to.
 - **int WriteSector(int sectornum, void \*buf)** - Same as **ReadSector** but writes into the sector, rather than copying from.
@@ -99,7 +112,7 @@
 - Server has no knowledge of open files, such knowledge is held by the processes calling the server.
 - The server has a cache of recently accessed blocks of size BLOCK_CACHESIZE. A cache of recently accessed inodes of size INODE_CACHESIZE also exists.
 
-###File System Library
+### File System Library
 
 - Meant to record open files or directories by processes
 - Cannot Create() or Open() more than MAX_OPEN_FILES files
