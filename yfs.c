@@ -80,9 +80,86 @@ void GetFreeInodeList() {
         struct inode *next = GetInode(i);
         if (next->type == INODE_FREE) pushToBuffer(free_inode_list, i);
     }
+    printf("Free Inode List\n");
+    printBuffer(free_inode_list);
+}
+
+/**
+ * Searches for a value in an array, if it's found swaps it with the value
+ * at index
+ * @param arr Array that is to be swapped
+ * @param size Size of the array
+ * @param value Value that will be swapped
+ * @param index Index to swap to
+ */
+void SearchAndSwap(int arr[], int size, int value, int index) {
+    printf("Searching\n");
+    //printf("Array 0: %d\n",*arr[0])
+    int i = -1;
+    int search_index = -1;
+    while(i != value && index < size) {
+        search_index++;
+        printf("Searching for %d\n",value);
+        i = arr[search_index];
+    }
+    if(search_index == index || i == -1) return;
+    int j = arr[index];
+    printf("J: %d\n",j);
+    arr[index] = value;
+    arr[search_index] = j;
+    printf("Swapped %d and %d\n",arr[index],arr[search_index]);
+
 }
 
 
+void GetFreeBlockList() {
+    free_block_list = malloc(sizeof(struct buffer));
+    int data_blocks = ((header->num_inodes+1)%8) ? header->num_blocks - ((header->num_inodes+1)/8)-1 : header->num_blocks - ((header->num_inodes+1)/8) -2;
+    int first_data_block = header->num_blocks-data_blocks-1;
+    int b[data_blocks];
+    int i;
+    /** Block 0 is the boot block and not used by the file system*/
+    for (i = first_data_block; i < data_blocks + first_data_block; i ++) {
+        b[i-first_data_block] = i;
+        printf("%d\n",i);
+    }
+    printf("Array Initialized\n");
+    int busy_blocks = 0;
+    for(i = 1; i <= header->num_inodes; i ++) {
+        struct inode *scan = GetInode(i);
+        int j = 0;
+        while(scan->direct[j] && j < NUM_DIRECT) {
+            SearchAndSwap(b, data_blocks, scan->direct[j], busy_blocks);
+            busy_blocks ++;
+            j ++;
+        }
+        if(scan->indirect) {
+            SearchAndSwap(b, header->num_blocks, scan->indirect, busy_blocks);
+            busy_blocks++;
+            int *indirect_blocks = (int *) GetBlock(scan->indirect);
+            j = 0;
+            while(indirect_blocks[j]) {
+                SearchAndSwap(b, header->num_blocks, indirect_blocks[j], busy_blocks);
+                busy_blocks++;
+                j++;
+            }
+        }
+    }
+
+    free_block_list->size = data_blocks;
+    free_block_list->in = free_block_list->size;
+    free_block_list->out = 0;
+    free_block_list->empty = 0;
+    free_block_list->full = 1;
+    free_block_list->b = b;
+    int k;
+    for(k = 0; k < busy_blocks; k++) {
+        popFromBuffer(free_block_list);
+    }
+    printBuffer(free_block_list);
+    pushToBuffer(free_block_list,1425);
+    printBuffer(free_block_list);
+}
 
 int main(int argc, char **argv) {
     Register(FILE_SERVER);
@@ -98,8 +175,11 @@ int main(int argc, char **argv) {
     inode_stack = CreateInodeCache();
     block_stack = CreateBlockCache();
     GetFreeInodeList();
-    printBuffer(free_inode_list);
+    printf("Free Node List\n");
+    //printBuffer(free_inode_list);
     PrintInodeCache(inode_stack);
+    GetFreeBlockList();
+    //printBuffer(free_block_list);
     return 0;
 };
 
