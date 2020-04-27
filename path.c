@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "path.h"
@@ -34,6 +35,10 @@ Result:
 / -> a -> b -> c -> . -> NULL
 */
 
+/*
+ * Private helper method which fills up 30 char buffer
+ * with provided string and rest with null string.
+ */
 void SetDirectoryName(char *target, char *path, int start, int end) {
     int i;
     for (i = 0; i < DIRNAMELEN; i++) {
@@ -42,17 +47,23 @@ void SetDirectoryName(char *target, char *path, int start, int end) {
     }
 }
 
-struct PathIterator *CreatePathIterator(struct PathIterator *head) {
-    struct PathIterator *it = malloc(sizeof(struct PathIterator));
-    printf("malloc: %p\n", it);
+/*
+ * Private helper method which allocate PathIterator.
+ */
+PathIterator *CreatePathIterator(PathIterator *head) {
+    PathIterator *it = malloc(sizeof(PathIterator));
     it->head = head;
     it->next = NULL;
     return it;
 }
 
-struct PathIterator *ParsePath(char *pathname) {
-    struct PathIterator *it = CreatePathIterator(NULL);
-    struct PathIterator *head = it;
+/*
+ * Given pathname as Yalnix argument, parse it
+ * into a linked list of component.
+ */
+PathIterator *ParsePath(char *pathname) {
+    PathIterator *it = CreatePathIterator(NULL);
+    PathIterator *head = it;
 
     int i = 0;
     int start = 0;
@@ -98,9 +109,13 @@ struct PathIterator *ParsePath(char *pathname) {
     return head;
 }
 
-int DeletePathIterator(struct PathIterator *head) {
-    struct PathIterator *prev;
-    struct PathIterator *it = head;
+/*
+ * Free pathIterator linked list after finished using it.
+ * You must provided the head of the linked list.
+ */
+int DeletePathIterator(PathIterator *head) {
+    PathIterator *prev;
+    PathIterator *it = head;
 
     while (it != NULL) {
         prev = it;
@@ -111,7 +126,7 @@ int DeletePathIterator(struct PathIterator *head) {
 }
 
 void TestPathIterator() {
-    struct PathIterator *it;
+    PathIterator *it;
 
     printf("Testing /abc/def/ghi.c\n");
     it = ParsePath("/abc/def/ghi.c");

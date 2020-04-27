@@ -1,95 +1,96 @@
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <comp421/yalnix.h>
 #include <comp421/iolib.h>
+#include <comp421/filesystem.h>
 #include "path.h"
+#include "packet.h"
+#include "fd.h";
 
-/*
- * Given pathname, create a linked list of parsed components
- */
-// PathIterator *CreatePathIterator(char *pathname);
-
-/*
- * Free Path Iterator.
- * Should be able to delete all iterators even if
- * any step of iterator is provided.
- */
-// int DeletePathIterator(PathIterator *it);
-
-/*
- * Prepare new file descriptor using lowest available fd
- * using file data. Return -1 if open file table is all filled up.
- */
-// int CreateFileDescriptor();
-
-/*
- * Close file descriptor. Return -1 if fd is invalid.
- */
-// int CloseFileDescriptor(int fd);
-
-/*
- * Get file descriptor. Return NULL if fd is invalid.
- */
-// FileDescriptor GetFileDescriptor(int fd);
-
-/*
- * Get current directory inode
- */
-// int GetCurrentDirectory(int inum);
-
-/*
- * Set current directory inode
- */
-// int SetCurrentDirectory(int inum);
-// Or just have a global variable here
+int current_inum = ROOTINODE;
 
 /**
  * Creates and opens new file named pathname.
  */
 int Create(char *pathname) {
     TracePrintf(10, "\t┌─ [Create] path: %s\n", pathname);
-    /*
-    // Verify against pathname max length
 
-    // Create an iterator through tokenized pathname
-    int target_inum;
-    PathIterator *it = CreatePathIterator(pathname);
-    while (it->data != NULL) {
-        Send the following data to file server
-        - Type: GetFile
-        - Arg1: current directory inode
-        - Arg2: next component (it->data)
-        and expect the following data back
-        - Type: GetFile
-        - Data1: target_inum = inode if requested component exists, 0 if not
-        - Break if not found
+    /* Verify against pathname max length */
+    if (strlen(pathname) > MAXPATHNAMELEN) return -1;
 
-        it = it->next;
+    /* Used for sending/receiving data */
+    void *packet = malloc(PACKET_SIZE);
+
+    /* Tokenize pathname */
+    PathIterator *it = ParsePath(pathname);
+
+    /* Last component of path */
+    char filename[DIRNAMELEN];
+
+    /* Inode from iteration */
+    int next_inum = ROOTINODE;
+
+    /* Parent inode for file */
+    int parent_inum = current_inum;
+    int last_it = 0;
+
+    /* Request for file info for all components */
+    ((DataPacket *)packet)->packet_type = MSG_GET_FILE;
+
+    /* Iterate over tokenized pathname components */
+    while (it->next != NULL) {
+      /* We already know the inode for root */
+      if (it->data[0] == '/') {
+        next_inum = ROOTINODE;
+        parent_inum = ROOTINODE;
+      } else {
+        ((DataPacket *)packet)->arg1 = current_inum;
+        ((DataPacket *)packet)->pointer = (void *)it->data;
+        Send(packet, -FILE_SERVER);
+        parent_inum = next_inum;
+        next_inum = ((FilePacket *)packet)->inum;
+      }
+
+      it = it->next;
+      /* To confirm that it was last iteration when breaking out */
+      if (it->next == NULL) {
+        last_it = 1;
+        /* Iterator will be freed. Keep filename here. */
+        memcpy(filename, it->data, DIRNAMELEN);
+      }
+
+      /* Inum = 0 means file was not found */
+      if (next_inum == 0) break;
     }
-
     DeletePathIterator(it);
 
-    // If target_inum is found
-    // Return ERROR if existing file is directory
-    // Request Truncate to file server
-    Send the following data to file server
-    - Type: TruncateFile
-    - Arg1: inode
-    and expect the following data back
-    - Data1: Success/Fail
+    /* Target is not found and it isn't the last one */
+    if (next_inum == 0 && last_it == 0) return -1;
 
-    // return with file descriptor
+    /* Target is found but is directory */
+    if (next_inum != 0) {
+        /* Target to override is directory */
+        if (((FilePacket *)packet)->type == INODE_DIRECTORY) return ERROR;
+    }
 
-    // If target_inum is not found
-    // Return ERROR if not found target_inum is not last component of path
-    // Create New File
-    Send the following data to file server
-    - Type: CreateFile
-    - Arg1: filename
-    - Arg2: parent_inum
-    // return with file descriptor
-    */
+    /* Create new file or truncate existing file */
+    memset(packet, 0, PACKET_SIZE);
+    ((DataPacket *)packet)->packet_type = MSG_CREATE_FILE;
+    ((DataPacket *)packet)->arg1 = parent_inum;
+    ((DataPacket *)packet)->pointer = (void *)filename;
+    Send(packet, -FILE_SERVER);
 
-    TracePrintf(10, "\t└─ [Create]\n\n");
-    return 0;
+    /* If returned inum is 0, there is an error with file creation */
+    if (((FilePacket *)packet)->inum == 0) return -1;
+    int fd = CreateFileDescriptor(((FilePacket *)packet)->inum);
+    if (fd < 0) {
+        fprintf(stderr, "File Descriptor error\n");
+        return -1;
+    }
+
+    TracePrintf(10, "\t└─ [Create fd: %d]\n\n", fd);
+    return fd;
 }
 
 /**
@@ -301,6 +302,10 @@ int Stat(char *pathname, struct Stat *statbuf) {
     - Data3: size
     - Data4: nlink
     */
+    statbuf->inum = 0;
+    statbuf->type = 0;
+    statbuf->size = 0;
+    statbuf->nlink = 0;
     TracePrintf(10, "\t└─ [Stat]\n\n");
     return 0;
 }

@@ -7,6 +7,7 @@
 #include "cache.h"
 #include "buffer.h"
 #include "path.h"
+#include "packet.h"
 
 struct fs_header *header; /**Pointer to File System Header*/
 
@@ -49,7 +50,7 @@ void *GetBlock(int block_num) {
  * @param inode_num The inode being requested
  * @return A pointer to where the inode is
  */
-struct inode* GetInode(int inode_num) {
+struct inode *GetInode(int inode_num) {
     /** Inode number must be in valid range*/
     assert(inode_num >= 1 && inode_num <= header->num_inodes);
 
@@ -82,7 +83,26 @@ void GetFreeInodeList() {
     }
 }
 
+/*
+ * TODO:
+ * Return -1 if inum has no available room.
+ * Create inode. Make sure cache knows it.
+ * Register that to inum's inode and update size.
+ */
+int CreateDirectory(int parent_inum, int new_inum, char *dirname);
 
+/*
+ * TODO:
+ * Given directory inode and dirname,
+ * find inode which matches with dirname.
+ */
+int SearchDirectory(struct inode *inode, char *dirname);
+
+/*
+ * TODO:
+ * Set size as 0. Free all of its blocks.
+ */
+int TruncateInode(struct inode *inode);
 
 int main(int argc, char **argv) {
     Register(FILE_SERVER);
@@ -106,7 +126,7 @@ int main(int argc, char **argv) {
 
     int pid;
   	if ((pid = Fork()) < 0) {
-  	    TracePrintf(0, "Cannot Fork.\n");
+  	    fprintf(stderr, "Cannot Fork.\n");
   	    return -1;
   	}
 
@@ -114,15 +134,113 @@ int main(int argc, char **argv) {
     if (pid == 0) {
         GetBlock(7);
         Exec(argv[1], argv + 1);
-        TracePrintf(0, "Cannot Exec.\n");
+        fprintf(stderr, "Cannot Exec.\n");
         return -1;
     }
 
-    void *buffer = malloc(32);
+    /* Variables used for handling server */
+    struct inode *inode;
+    void *packet = malloc(PACKET_SIZE);
+    char dirname[DIRNAMELEN];
+    int inum;
+
     while (1) {
-        if ((pid = Receive(buffer)) < 0) {
-            TracePrintf(0, "Receive Error.\n");
+        if ((pid = Receive(packet)) < 0) {
+            fprintf(stderr, "Receive Error.\n");
             return -1;
+        }
+
+        switch (((UnknownPacket *)packet)->packet_type) {
+          case MSG_GET_FILE:
+            printf("MSG_GET_FILE received from pid: %d\n", pid);
+            inum = ((DataPacket *)packet)->arg1;
+
+            if (CopyFrom(pid, dirname, ((DataPacket *)packet)->pointer, DIRNAMELEN) < 0) {
+                fprintf(stderr, "CopyFrom Error.\n");
+                return -1;
+            }
+
+            printf("dirname: %s\n", dirname);
+
+            /* Bleach packet for reuse */
+            memset(packet, 0, PACKET_SIZE);
+            ((FilePacket *)packet)->packet_type = MSG_GET_FILE;
+            ((FilePacket *)packet)->inum = 0;
+
+            inode = GetInode(inum);
+            /*
+             * Expected to search dirname in directory.
+             * Everything else is irrelevant.
+             */
+            if (inode->type == INODE_DIRECTORY) {
+                /*
+                // Search inode to find relevant block
+                int blockId = SearchDirectory(inode, dirname);
+                if (blockId > 0) {
+                    struct dir_entry *dir = (struct dir_entry *)GetBlock(blockId);
+                    inode = GetInode(dir->inum);
+                    ((FilePacket *)packet)->inum = dir->inum;
+                    ((FilePacket *)packet)->type = inode->type;
+                    ((FilePacket *)packet)->size = inode->size;
+                    ((FilePacket *)packet)->nlink = inode->nlink;
+                }
+                */
+            }
+
+            if (Reply(packet, pid) < 0) {
+                fprintf(stderr, "Reply Error.\n");
+                return -1;
+            }
+            break;
+          case MSG_CREATE_FILE:
+            printf("MSG_CREATE_FILE received from pid: %d\n", pid);
+            inum = ((DataPacket *)packet)->arg1;
+            if (CopyFrom(pid, dirname, ((DataPacket *)packet)->pointer, DIRNAMELEN) < 0) {
+                fprintf(stderr, "CopyFrom Error.\n");
+                return -1;
+            }
+
+            /* Bleach packet for reuse */
+            memset(packet, 0, PACKET_SIZE);
+            ((FilePacket *)packet)->packet_type = MSG_CREATE_FILE;
+            ((FilePacket *)packet)->inum = 0;
+            inode = GetInode(inum);
+
+            /*
+             * Expected to create file in directory.
+             * Everything else is irrelevant.
+             */
+            if (inode->type == INODE_DIRECTORY) {
+                /*
+                // Search inode to find relevant block
+                int blockId = SearchDirectory(inode, dirname);
+                if (blockId > 0) {
+                    struct dir_entry *dir = (struct dir_entry *)GetBlock(blockId);
+                    inode = GetInode(dir->inum);
+
+                    // If inode exists, set its size as 0 and free all blocks
+                    if (inode > 0) {
+                        TruncateInode(inode);
+                        ((FilePacket *)packet)->inum = dir->inum;
+                    } else {
+                        int next_inum = GetNextInodeNumber();
+                        inode = CreateDirectory(inum, next_inum, dirname);
+                        ((FilePacket *)packet)->inum = next_inum;
+                    }
+                    ((FilePacket *)packet)->type = inode->type;
+                    ((FilePacket *)packet)->size = inode->size;
+                    ((FilePacket *)packet)->nlink = inode->nlink;
+                }
+                */
+            }
+
+            if (Reply(packet, pid) < 0) {
+                fprintf(stderr, "Reply Error.\n");
+                return -1;
+            }
+            break;
+          default:
+            break;
         }
     }
 
