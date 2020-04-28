@@ -8,17 +8,17 @@
 #include "buffer.h"
 #include "path.h"
 
-struct fs_header *header; /**Pointer to File System Header*/
+// 8
+#define INODE_PER_BLOCK (BLOCKSIZE / INODESIZE)
 
-struct inode *root_inode; /**Pointer to Root Directory Inode*/
+struct fs_header *header; /* Pointer to File System Header */
+struct inode *root_inode; /* Pointer to Root Directory Inode */
 
-struct block_cache* block_stack; /**Cache for recently accessed blocks*/
+struct block_cache* block_stack; /* Cache for recently accessed blocks */
+struct inode_cache* inode_stack; /* Cache for recently accessed inodes */
 
-struct inode_cache* inode_stack; /**Cache for recently accessed inodes*/
-
-struct buffer* free_inode_list; /**List of Inodes available to assign to files*/
-
-struct buffer* free_block_list; /**List of blocks ready to allocate for file data*/
+struct buffer* free_inode_list; /* List of Inodes available to assign to files */
+struct buffer* free_block_list; /* List of blocks ready to allocate for file data */
 
 /**
  * Returns a block, either by searching the cache or reading its sector
@@ -109,34 +109,33 @@ void SearchAndSwap(int arr[], int size, int value, int index) {
  * Function initializes the list numbers for blocks that have not been allocated yet
  */
 void GetFreeBlockList() {
-    /* Initialize a special buffer*/
-    free_block_list = malloc(sizeof(struct buffer));
-    free_block_list->size = data_blocks;
-    free_block_list->in = free_block_list->size;
-    free_block_list->out = 0;
-    free_block_list->empty = 0;
-    free_block_list->full = 1;
+    /* Compute number of blocks occupited by inodes */
+    int inode_count = header->num_inodes + 1;
+    int inode_block_count = inode_count / INODE_PER_BLOCK;
+    if (inode_count % INODE_PER_BLOCK > 0) inode_block_count++;
 
-    /* Number of data blocks dependent on number of inodes*/
-    int data_blocks = ((header->num_inodes + 1) % 8) ? header->num_blocks - ((header->num_inodes + 1) / 8) - 1 : header->num_blocks - ((header->num_inodes + 1) / 8) - 2;
-    int first_data_block = header->num_blocks-data_blocks-1;
-    int b[data_blocks];
+    /* Compute number of blocks with inodes and boot block excluded */
+    int block_count = header->num_blocks - inode_block_count - 1;
+    int first_data_block = 1 + inode_block_count;
+    int buffer[block_count];
     int i;
 
-    /* Block 0 is the boot block and not used by the file system*/
-    for (i = first_data_block; i < data_blocks + first_data_block; i ++) {
-        b[i-first_data_block] = i;
-        printf("%d\n",i);
+    /* Block 0 is the boot block and not used by the file system */
+    for (i = 0; i < block_count; i++) {
+        buffer[i] = i + first_data_block;
     }
 
     /* Iterate through inodes to check which ones are using blocks */
+    int j;
     int busy_blocks = 0;
+    struct inode *scan;
     for (i = 1; i <= header->num_inodes; i ++) {
-        struct inode *scan = GetInode(i);
-        int j = 0;
-        /** Iterate through direct array to find first blocks*/
+        scan = GetInode(i);
+
+        /* Iterate through direct array to find first blocks */
+        j = 0;
         while (scan->direct[j] && j < NUM_DIRECT) {
-            SearchAndSwap(b, data_blocks, scan->direct[j], busy_blocks);
+            SearchAndSwap(buffer, block_count, scan->direct[j], busy_blocks);
             busy_blocks++;
             j++;
         }
@@ -145,20 +144,27 @@ void GetFreeBlockList() {
          * and the array that's contained
          */
         if (scan->indirect) {
-            SearchAndSwap(b, header->num_blocks, scan->indirect, busy_blocks);
+            SearchAndSwap(buffer, header->num_blocks, scan->indirect, busy_blocks);
             busy_blocks++;
             int *indirect_blocks = (int *)GetBlock(scan->indirect);
             j = 0;
             while (indirect_blocks[j]) {
-                SearchAndSwap(b, header->num_blocks, indirect_blocks[j], busy_blocks);
+                SearchAndSwap(buffer, header->num_blocks, indirect_blocks[j], busy_blocks);
                 busy_blocks++;
                 j++;
             }
         }
     }
 
-    /* Give the created array to the buffer */
-    free_block_list->b = b;
+    /* Initialize a special buffer */
+    free_block_list = malloc(sizeof(struct buffer));
+    free_block_list->size = block_count;
+    free_block_list->b = buffer;
+    free_block_list->in = free_block_list->size;
+    free_block_list->out = 0;
+    free_block_list->empty = 0;
+    free_block_list->full = 1;
+
     int k;
     for (k = 0; k < busy_blocks; k++) {
         popFromBuffer(free_block_list);

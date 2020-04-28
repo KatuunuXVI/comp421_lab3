@@ -1,6 +1,7 @@
 #include "buffer.h"
 #include <stdlib.h>
 #include <stdio.h>
+
 struct buffer *getBuffer(int size) {
     struct buffer* newBuf = malloc(sizeof(struct buffer));
     newBuf->size = size;
