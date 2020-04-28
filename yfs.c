@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <assert.h>
 #include <comp421/yalnix.h>
 #include <comp421/filesystem.h>
@@ -104,6 +105,171 @@ int SearchDirectory(struct inode *inode, char *dirname);
  */
 int TruncateInode(struct inode *inode);
 
+/*
+ * TODO:
+ * Read inode from pos to pos + size and invoke CopyTo to target buffer.
+ * Return copied size. Return -1 if nothing is copied.
+ */
+int ReadFromInode(int pid, int inum, int pos, int size, char *buffer);
+
+/*
+ * TODO:
+ * Write to inode from pos to pos + size with data obtained from CopyFrom.
+ * Return copied size. Return -1 if nothing is copied.
+ */
+int WriteToInode(int pid, int inum, int pos, int size, char *buffer);
+
+
+/*************************
+ * File Request Hanlders *
+ *************************/
+int GetFile(void *packet, int pid) {
+    struct inode *inode;
+    char dirname[DIRNAMELEN];
+    int inum = ((DataPacket *)packet)->arg1;
+    void *target = ((DataPacket *)packet)->pointer;
+
+    if (CopyFrom(pid, dirname, target, DIRNAMELEN) < 0) {
+        fprintf(stderr, "CopyFrom Error.\n");
+        return -1;
+    }
+
+    inode = GetInode(inum);
+
+    /* Bleach packet for reuse */
+    memset(packet, 0, PACKET_SIZE);
+    ((FilePacket *)packet)->packet_type = MSG_GET_FILE;
+    ((FilePacket *)packet)->inum = 0;
+
+    /*
+     * Cannot search inside non-directory.
+     * TODO: return here for link
+     */
+    if (inode->type != INODE_DIRECTORY) return 0;
+
+    /*
+    // Search inode to find relevant block
+    int blockId = SearchDirectory(inode, dirname);
+    if (blockId == 0) return 0;
+
+    // Find inode of target directory
+    struct dir_entry *dir = (struct dir_entry *)GetBlock(blockId);
+    inode = GetInode(dir->inum);
+    ((FilePacket *)packet)->inum = dir->inum;
+    ((FilePacket *)packet)->type = inode->type;
+    ((FilePacket *)packet)->size = inode->size;
+    ((FilePacket *)packet)->nlink = inode->nlink;
+    */
+    return 0;
+}
+
+int CreateFile(void *packet, int pid) {
+    struct inode *inode;
+    char dirname[DIRNAMELEN];
+    int inum = ((DataPacket *)packet)->arg1;
+    void *target = ((DataPacket *)packet)->pointer;
+
+    if (CopyFrom(pid, dirname, target, DIRNAMELEN) < 0) {
+        fprintf(stderr, "CopyFrom Error.\n");
+        return -1;
+    }
+
+    inode = GetInode(inum);
+
+    /* Bleach packet for reuse */
+    memset(packet, 0, PACKET_SIZE);
+    ((FilePacket *)packet)->packet_type = MSG_CREATE_FILE;
+    ((FilePacket *)packet)->inum = 0;
+
+    /*
+     * Cannot create inside non-directory.
+     * TODO: return here for link
+     */
+    if (inode->type != INODE_DIRECTORY) return 0;
+
+    /*
+    int blockId = SearchDirectory(inode, dirname);
+    int target_inum;
+    if (blockId > 0) {
+        // Inode is found. Truncate
+        struct dir_entry *dir = (struct dir_entry *)GetBlock(blockId);
+        inode = GetInode(dir->inum);
+        TruncateInode(inode);
+        target_inum = dir->inum;
+    } else {
+        // Create new file if not found
+        target_inum = GetNextInodeNumber();
+        inode = CreateDirectory(inum, next_inum, dirname);
+    }
+
+    ((FilePacket *)packet)->inum = target_inum;
+    ((FilePacket *)packet)->type = inode->type;
+    ((FilePacket *)packet)->size = inode->size;
+    ((FilePacket *)packet)->nlink = inode->nlink;
+    */
+    return 0;
+}
+
+void ReadFile(DataPacket *packet, int pid) {
+    int inum = packet->arg1;
+    int pos = packet->arg2;
+    int size = packet->arg3;
+    void *buffer = packet->pointer;
+
+    // int result = ReadFromInode(
+    //     pid,
+    //     inum,
+    //     ((DataPacket *)packet)->arg2, // pos
+    //     ((DataPacket *)packet)->arg3, // size
+    //     ((DataPacket *)packet)->pointer // buffer
+    // );
+
+    memset(packet, 0, PACKET_SIZE);
+    packet->packet_type = MSG_READ_FILE;
+    packet->arg1 = -1;
+}
+
+void WriteFile(DataPacket *packet, int pid) {
+    int inum = packet->arg1;
+    int pos = packet->arg2;
+    int size = packet->arg3;
+    void *buffer = packet->pointer;
+
+    // int result = WriteToInode(
+    //     pid,
+    //     inum,
+    //     ((DataPacket *)packet)->arg2, // pos
+    //     ((DataPacket *)packet)->arg3, // size
+    //     ((DataPacket *)packet)->pointer // buffer
+    // );
+
+    memset(packet, 0, PACKET_SIZE);
+    packet->packet_type = MSG_WRITE_FILE;
+    packet->arg1 = -1;
+}
+
+void CreateDir(void *packet, int pid) {
+    char dirname[DIRNAMELEN];
+    int inum = ((DataPacket *)packet)->arg1;
+    void *target = ((DataPacket *)packet)->pointer;
+
+    memset(packet, 0, PACKET_SIZE);
+    ((FilePacket *)packet)->packet_type = MSG_CREATE_DIR;
+    ((FilePacket *)packet)->inum = 0;
+}
+
+void DeleteDir(DataPacket *packet, int pid) {
+    int inum = packet->arg1;
+
+    memset(packet, 0, PACKET_SIZE);
+    packet->packet_type = MSG_DELETE_DIR;
+    packet->arg1 = -1;
+}
+
+void SyncCache() {
+
+}
+
 int main(int argc, char **argv) {
     Register(FILE_SERVER);
 
@@ -138,12 +304,7 @@ int main(int argc, char **argv) {
         return -1;
     }
 
-    /* Variables used for handling server */
-    struct inode *inode;
     void *packet = malloc(PACKET_SIZE);
-    char dirname[DIRNAMELEN];
-    int inum;
-
     while (1) {
         if ((pid = Receive(packet)) < 0) {
             fprintf(stderr, "Receive Error.\n");
@@ -151,96 +312,40 @@ int main(int argc, char **argv) {
         }
 
         switch (((UnknownPacket *)packet)->packet_type) {
-          case MSG_GET_FILE:
-            printf("MSG_GET_FILE received from pid: %d\n", pid);
-            inum = ((DataPacket *)packet)->arg1;
+            case MSG_GET_FILE:
+                printf("MSG_GET_FILE received from pid: %d\n", pid);
+                GetFile(packet, pid);
+                break;
+            case MSG_CREATE_FILE:
+                printf("MSG_CREATE_FILE received from pid: %d\n", pid);
+                CreateFile(packet, pid);
+                break;
+            case MSG_READ_FILE:
+                printf("MSG_READ_FILE received from pid: %d\n", pid);
+                ReadFile(packet, pid);
+                break;
+            case MSG_WRITE_FILE:
+                printf("MSG_WRITE_FILE received from pid: %d\n", pid);
+                WriteFile(packet, pid);
+            case MSG_CREATE_DIR:
+                printf("MSG_CREATE_DIR received from pid: %d\n", pid);
+                CreateDir(packet, pid);
+                break;
+            case MSG_DELETE_DIR:
+                printf("MSG_DELETE_DIR received from pid: %d\n", pid);
+                DeleteDir(packet, pid);
+                break;
+            case MSG_SYNC:
+                printf("MSG_SYNC received from pid: %d\n", pid);
+                SyncCache();
+                break;
+            default:
+                continue;
+        }
 
-            if (CopyFrom(pid, dirname, ((DataPacket *)packet)->pointer, DIRNAMELEN) < 0) {
-                fprintf(stderr, "CopyFrom Error.\n");
-                return -1;
-            }
-
-            printf("dirname: %s\n", dirname);
-
-            /* Bleach packet for reuse */
-            memset(packet, 0, PACKET_SIZE);
-            ((FilePacket *)packet)->packet_type = MSG_GET_FILE;
-            ((FilePacket *)packet)->inum = 0;
-
-            inode = GetInode(inum);
-            /*
-             * Expected to search dirname in directory.
-             * Everything else is irrelevant.
-             */
-            if (inode->type == INODE_DIRECTORY) {
-                /*
-                // Search inode to find relevant block
-                int blockId = SearchDirectory(inode, dirname);
-                if (blockId > 0) {
-                    struct dir_entry *dir = (struct dir_entry *)GetBlock(blockId);
-                    inode = GetInode(dir->inum);
-                    ((FilePacket *)packet)->inum = dir->inum;
-                    ((FilePacket *)packet)->type = inode->type;
-                    ((FilePacket *)packet)->size = inode->size;
-                    ((FilePacket *)packet)->nlink = inode->nlink;
-                }
-                */
-            }
-
-            if (Reply(packet, pid) < 0) {
-                fprintf(stderr, "Reply Error.\n");
-                return -1;
-            }
-            break;
-          case MSG_CREATE_FILE:
-            printf("MSG_CREATE_FILE received from pid: %d\n", pid);
-            inum = ((DataPacket *)packet)->arg1;
-            if (CopyFrom(pid, dirname, ((DataPacket *)packet)->pointer, DIRNAMELEN) < 0) {
-                fprintf(stderr, "CopyFrom Error.\n");
-                return -1;
-            }
-
-            /* Bleach packet for reuse */
-            memset(packet, 0, PACKET_SIZE);
-            ((FilePacket *)packet)->packet_type = MSG_CREATE_FILE;
-            ((FilePacket *)packet)->inum = 0;
-            inode = GetInode(inum);
-
-            /*
-             * Expected to create file in directory.
-             * Everything else is irrelevant.
-             */
-            if (inode->type == INODE_DIRECTORY) {
-                /*
-                // Search inode to find relevant block
-                int blockId = SearchDirectory(inode, dirname);
-                if (blockId > 0) {
-                    struct dir_entry *dir = (struct dir_entry *)GetBlock(blockId);
-                    inode = GetInode(dir->inum);
-
-                    // If inode exists, set its size as 0 and free all blocks
-                    if (inode > 0) {
-                        TruncateInode(inode);
-                        ((FilePacket *)packet)->inum = dir->inum;
-                    } else {
-                        int next_inum = GetNextInodeNumber();
-                        inode = CreateDirectory(inum, next_inum, dirname);
-                        ((FilePacket *)packet)->inum = next_inum;
-                    }
-                    ((FilePacket *)packet)->type = inode->type;
-                    ((FilePacket *)packet)->size = inode->size;
-                    ((FilePacket *)packet)->nlink = inode->nlink;
-                }
-                */
-            }
-
-            if (Reply(packet, pid) < 0) {
-                fprintf(stderr, "Reply Error.\n");
-                return -1;
-            }
-            break;
-          default:
-            break;
+        if (Reply(packet, pid) < 0) {
+            fprintf(stderr, "Reply Error.\n");
+            return -1;
         }
     }
 

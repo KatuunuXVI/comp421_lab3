@@ -12,6 +12,8 @@ void IntializeOpenFileTable() {
     int i;
     if (initialized == 1) return;
     for (i = 0; i < MAX_OPEN_FILES; i++) {
+        open_file_table[0].id = i;
+        open_file_table[0].used = 0;
         open_file_table[0].inum = 0;
         open_file_table[0].pos = 0;
     }
@@ -22,27 +24,27 @@ void IntializeOpenFileTable() {
  * Prepare new file descriptor using lowest available fd using file data.
  * Return -1 if open file table is all filled up.
  */
-int CreateFileDescriptor(int inum) {
+FileDescriptor *CreateFileDescriptor() {
     int i;
     if (initialized == 0) IntializeOpenFileTable();
     for (i = 0; i < MAX_OPEN_FILES; i++) {
-        if (open_file_table[i].inum == 0) {
-            open_file_table[i].inum = inum;
+        if (open_file_table[i].used == 0) {
+            open_file_table[i].used = 1;
             break;
         }
     }
-    if (i >= MAX_OPEN_FILES) return -1;
-    return i;
+    if (i >= MAX_OPEN_FILES) return NULL;
+    return &open_file_table[i];
 }
 
 /*
  * Close file descriptor. Return -1 if fd is invalid.
  */
-int CloseFileDescriptor(int fd) {
+int CloseFileDescriptor(int fd_id) {
     if (initialized == 0) return -1;
-    if (fd > MAX_OPEN_FILES || fd < 0) return -1;
-    if (open_file_table[fd].inum != 0) {
-        open_file_table[fd].inum = 0;
+    if (fd_id < 0 || fd_id >= MAX_OPEN_FILES) return -1;
+    if (open_file_table[fd_id].used != 0) {
+        open_file_table[fd_id].used = 0;
         return 0;
     }
     return -1;
@@ -51,9 +53,9 @@ int CloseFileDescriptor(int fd) {
 /*
  * Get file descriptor. Return NULL if fd is invalid.
  */
-void *GetFileDescriptor(int fd) {
+FileDescriptor *GetFileDescriptor(int fd_id) {
     if (initialized == 0) return NULL;
-    if (fd > MAX_OPEN_FILES || fd < 0) return NULL;
-    if (open_file_table[fd].inum == 0) return NULL;
-    return &open_file_table[fd];
+    if (fd_id < 0 || fd_id >= MAX_OPEN_FILES) return NULL;
+    if (open_file_table[fd_id].used == 0) return NULL;
+    return &open_file_table[fd_id];
 }

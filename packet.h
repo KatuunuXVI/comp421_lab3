@@ -5,7 +5,32 @@
 #define MSG_GET_FILE 1
 
 // Send: DataPacket
+// Recieve: FilePacket
 #define MSG_CREATE_FILE 2
+
+// Send: DataPacket
+// Recieve: DataPacket
+#define MSG_READ_FILE 3
+
+// Send: DataPacket
+// Recieve: DataPacket
+#define MSG_WRITE_FILE 4
+
+// Send: DataPacket
+// Recieve: FilePacket
+#define MSG_CREATE_DIR 5
+
+// Send: DataPacket
+// Receive: DataPacket
+#define MSG_DELETE_DIR 6
+
+#define MSG_LINK 7
+
+#define MSG_UNLINK 8
+
+// Send: UnknownPacket
+// Receive DataPacket
+#define MSG_SYNC 9
 
 /*
  * All of the below must have size of 32 bytes.
@@ -25,11 +50,16 @@ typedef struct UnknownPacket {
  */
 typedef struct DataPacket {
   short packet_type; /* packet type (2 bytes) */
-  char unused[18];
+  char unused[10];
   int arg1; /* integer argument (4 bytes) */
+  int arg2; /* integer argument (4 bytes) */
+  int arg3; /* integer argument (4 bytes) */
   void *pointer; /* pointer argument (8 bytes) */
 } DataPacket;
 
+/*
+ * Packet for returning file data
+ */
 typedef struct FilePacket {
   short packet_type; /* packet type (2 bytes) */
   char unused[14]; /* 14 unused bytes for padding */
