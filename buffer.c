@@ -62,7 +62,7 @@ void printBuffer(struct buffer *buf) {
     } else {
         printf("Circular\n");
         printf("[");
-        for (i = buf->out; i <= buf->size; i++) {
+        for (i = buf->out; i < buf->size; i++) {
             printf("%d, ", buf->b[i]);
         }
         for (i = 0; i < buf->in-1; i++) {
