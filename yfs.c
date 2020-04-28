@@ -1,11 +1,12 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <assert.h>
 #include <comp421/yalnix.h>
 #include <comp421/filesystem.h>
 #include "yfs.h"
 #include "cache.h"
 #include "buffer.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <assert.h>
+#include "path.h"
 
 struct fs_header *header; /**Pointer to File System Header*/
 
@@ -67,7 +68,6 @@ struct inode* GetInode(int inode_num) {
     void* inode_block = GetBlock((inode_num / 8) + 1);
     AddToInodeCache(inode_stack, (struct inode *)inode_block + (inode_num % 8), inode_num); /**Add inode to cache, when accessed*/
     return (struct inode *)inode_block + (inode_num % 8);
-
 }
 
 /**
@@ -164,25 +164,48 @@ void GetFreeBlockList() {
 
 int main(int argc, char **argv) {
     Register(FILE_SERVER);
-    /** Obtain File System Header */
+
+    /* Obtain File System Header */
     void *sector_one = malloc(SECTORSIZE);
     if (ReadSector(1, sector_one) == 0) {
         header = (struct fs_header *)sector_one;
     } else {
         printf("Error\n");
     }
-    /**Obtain Root Directory Inode*/
+
+    /* Obtain Root Directory Inode*/
     root_inode = (struct inode *)header + 1;
+
     inode_stack = CreateInodeCache();
     block_stack = CreateBlockCache();
     GetFreeInodeList();
+
     printf("Free Node List\n");
     //PrintInodeCache(inode_stack);
     GetFreeBlockList();
     return 0;
+
+    int pid;
+  	if ((pid = Fork()) < 0) {
+  	    TracePrintf(0, "Cannot Fork.\n");
+  	    return -1;
+  	}
+
+    /* Child process exec program */
+    if (pid == 0) {
+        GetBlock(7);
+        Exec(argv[1], argv + 1);
+        TracePrintf(0, "Cannot Exec.\n");
+        return -1;
+    }
+
+    void *buffer = malloc(32);
+    while (1) {
+        if ((pid = Receive(buffer)) < 0) {
+            TracePrintf(0, "Receive Error.\n");
+            return -1;
+        }
+    }
+
+    return 0;
 };
-
-
-
-
-
