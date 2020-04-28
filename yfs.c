@@ -95,22 +95,21 @@ void GetFreeInodeList() {
 void SearchAndSwap(int arr[], int size, int value, int index) {
     int i = -1;
     int search_index = -1;
-    while(i != value && index < size) {
+    while (i != value && index < size) {
         search_index++;
         i = arr[search_index];
     }
-    if(search_index == index || i == -1) return;
+    if (search_index == index || i == -1) return;
     int j = arr[index];
     arr[index] = value;
     arr[search_index] = j;
-
 }
 
 /**
  * Function initializes the list numbers for blocks that have not been allocated yet
  */
 void GetFreeBlockList() {
-    /**Initialize a special buffer*/
+    /* Initialize a special buffer*/
     free_block_list = malloc(sizeof(struct buffer));
     free_block_list->size = data_blocks;
     free_block_list->in = free_block_list->size;
@@ -118,46 +117,50 @@ void GetFreeBlockList() {
     free_block_list->empty = 0;
     free_block_list->full = 1;
 
-    /**Number of data blocks dependent on number of inodes*/
+    /* Number of data blocks dependent on number of inodes*/
     int data_blocks = ((header->num_inodes + 1) % 8) ? header->num_blocks - ((header->num_inodes + 1) / 8) - 1 : header->num_blocks - ((header->num_inodes + 1) / 8) - 2;
     int first_data_block = header->num_blocks-data_blocks-1;
     int b[data_blocks];
     int i;
 
-    /** Block 0 is the boot block and not used by the file system*/
+    /* Block 0 is the boot block and not used by the file system*/
     for (i = first_data_block; i < data_blocks + first_data_block; i ++) {
         b[i-first_data_block] = i;
         printf("%d\n",i);
     }
-    /** Iterate through inodes to check which ones are using blocks */
+
+    /* Iterate through inodes to check which ones are using blocks */
     int busy_blocks = 0;
-    for(i = 1; i <= header->num_inodes; i ++) {
+    for (i = 1; i <= header->num_inodes; i ++) {
         struct inode *scan = GetInode(i);
         int j = 0;
         /** Iterate through direct array to find first blocks*/
-        while(scan->direct[j] && j < NUM_DIRECT) {
+        while (scan->direct[j] && j < NUM_DIRECT) {
             SearchAndSwap(b, data_blocks, scan->direct[j], busy_blocks);
-            busy_blocks ++;
-            j ++;
+            busy_blocks++;
+            j++;
         }
-        /** If indirect array is a non-zero value add it to the allocated block
-         * and the array that's contained */
-        if(scan->indirect) {
+        /*
+         * If indirect array is a non-zero value add it to the allocated block
+         * and the array that's contained
+         */
+        if (scan->indirect) {
             SearchAndSwap(b, header->num_blocks, scan->indirect, busy_blocks);
             busy_blocks++;
-            int *indirect_blocks = (int *) GetBlock(scan->indirect);
+            int *indirect_blocks = (int *)GetBlock(scan->indirect);
             j = 0;
-            while(indirect_blocks[j]) {
+            while (indirect_blocks[j]) {
                 SearchAndSwap(b, header->num_blocks, indirect_blocks[j], busy_blocks);
                 busy_blocks++;
                 j++;
             }
         }
     }
-    /** Give the created array to the buffer*/
+
+    /* Give the created array to the buffer */
     free_block_list->b = b;
     int k;
-    for(k = 0; k < busy_blocks; k++) {
+    for (k = 0; k < busy_blocks; k++) {
         popFromBuffer(free_block_list);
     }
 }
