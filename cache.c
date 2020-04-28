@@ -2,6 +2,7 @@
 #include <comp421/filesystem.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <comp421/yalnix.h>
 /*********************
  * Inode Cache Code *
  ********************/
@@ -35,6 +36,7 @@ void AddToInodeCache(struct inode_cache *stack, struct inode *in, int inumber) {
     }
     if (stack->size == INODE_CACHESIZE) {
         /**If the stack is full, the base is de-allocated and the pointers to it are nullified */
+        if(stack->base->dirty) WriteBackInode(stack->base);
         stack->base = stack->base->prev;
         free(stack->base->next);
         stack->base->next = NULL;
@@ -44,6 +46,18 @@ void AddToInodeCache(struct inode_cache *stack, struct inode *in, int inumber) {
     }
 }
 
+/**
+ *
+ * @param out Inode that was pushed out of the cache
+ */
+void WriteBackInode(struct inode_cache_entry* out) {
+    void *block = malloc(SECTORSIZE);
+    ReadSector((out->inode_number / 8) + 1, block);
+    struct inode *overwrite = (struct inode *) block + (out->inode_number % 8);
+    *overwrite = *out->in;
+    WriteSector((out->inode_number / 8) + 1, block);
+    free(block);
+}
 
 /**
  * When ever an inode is accessed, it is pulled from it's position in the stack
@@ -103,6 +117,7 @@ void AddToBlockCache(struct block_cache *stack, void* block, int block_number) {
 
     /**If the cache is at max size, the last used block is removed. */
     if (stack->size == BLOCK_CACHESIZE) {
+        if(stack->base->dirty) WriteSector(stack->base->block_number,stack->base->block);
         stack->base = stack->base->prev;
         free(stack->base->next);
         stack->base->next = NULL;
@@ -119,6 +134,12 @@ void RaiseBlockCachePosition(struct block_cache *stack, struct block_cache_entry
     recent_access->prev->next = recent_access->next;
     recent_access->next = stack->top;
     stack->top = recent_access;
+}
+
+void WriteBackBlock(struct block_cache_entry* out) {
+    void *block = malloc(SECTORSIZE);
+    ReadSector(out->block_number, block);
+
 }
 
 /**
