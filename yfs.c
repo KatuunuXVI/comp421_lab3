@@ -11,10 +11,11 @@
 #include "packet.h"
 
 // 8
-#define INODE_PER_BLOCK (BLOCKSIZE / INODESIZE)
+#define INODE_PER_BLOCK     (BLOCKSIZE / INODESIZE)
+#define DIRSIZE             (int)sizeof(struct dir_entry)
+#define	GET_DIR_COUNT(n)    (n / DIRSIZE)
 
 struct fs_header *header; /* Pointer to File System Header */
-struct inode *root_inode; /* Pointer to Root Directory Inode */
 
 struct block_cache* block_stack; /* Cache for recently accessed blocks */
 struct inode_cache* inode_stack; /* Cache for recently accessed inodes */
@@ -62,6 +63,7 @@ struct inode *GetInode(int inode_num) {
         found = (current->inode_number == inode_num);
         current = current->next;
     }
+    printf("inode_num: %d, found: %d\n", inode_num, found);
     if (found) {
         RaiseInodeCachePosition(inode_stack, current);
         return current->in;
@@ -81,7 +83,7 @@ struct inode *GetInode(int inode_num) {
  * @param index Index to swap to
  */
 void SearchAndSwap(int arr[], int size, int value, int index) {
-    printf("Searching and Swapping\n");
+    // printf("Searching and Swapping\n");
     int i = -1;
     int search_index = -1;
     while (i != value && index < size) {
@@ -104,8 +106,8 @@ void GetFreeInodeList() {
         struct inode *next = GetInode(i);
         if (next->type == INODE_FREE) pushToBuffer(free_inode_list, i);
     }
-    printf("Free Inode List\n");
-    printBuffer(free_inode_list);
+    // printf("Free Inode List\n");
+    // printBuffer(free_inode_list);
 }
 
 /**
@@ -126,7 +128,7 @@ void GetFreeBlockList() {
     /* Block 0 is the boot block and not used by the file system */
     for (i = 0; i < block_count; i++) {
         buffer[i] = i + first_data_block;
-        printf("%d\n",i+first_data_block);
+        // printf("%d\n",i+first_data_block);
     }
 
 
@@ -165,7 +167,6 @@ void GetFreeBlockList() {
         }
     }
 
-
     /* Initialize a special buffer */
     free_block_list = malloc(sizeof(struct buffer));
     free_block_list->size = block_count;
@@ -190,11 +191,16 @@ void GetFreeBlockList() {
 int CreateDirectory(int parent_inum, int new_inum, char *dirname);
 
 /*
- * TODO:
  * Given directory inode and dirname,
  * find inode which matches with dirname.
  */
-int SearchDirectory(struct inode *inode, char *dirname);
+int SearchDirectory(struct inode *inode, char *dirname) {
+    // if (inode->type != INODE_DIRECTORY) return 0;
+    printf("Hello!\n");
+    printf("dir_entry: %d\n", DIRSIZE);
+    // printf("GET_DIR_COUNT: %d\n", GET_DIR_COUNT(inode->size));
+    return 0;
+}
 
 /*
  * TODO:
@@ -238,10 +244,7 @@ int GetFile(void *packet, int pid) {
     ((FilePacket *)packet)->packet_type = MSG_GET_FILE;
     ((FilePacket *)packet)->inum = 0;
 
-    /*
-     * Cannot search inside non-directory.
-     * TODO: return here for link
-     */
+    /* Cannot search inside non-directory. */
     if (inode->type != INODE_DIRECTORY) return 0;
 
     /*
@@ -278,14 +281,18 @@ int CreateFile(void *packet, int pid) {
     ((FilePacket *)packet)->packet_type = MSG_CREATE_FILE;
     ((FilePacket *)packet)->inum = 0;
 
-    /*
-     * Cannot create inside non-directory.
-     * TODO: return here for link
-     */
-    if (inode->type != INODE_DIRECTORY) return 0;
+    /* Cannot create inside non-directory. */
+    printf("Hello!: %d\n", inum);
+    printf("inode->type: %d\n", inode->type);
 
-    /*
+    if (inode->type != INODE_DIRECTORY) {
+        printf("Bye!\n");
+        return 0;
+    }
+    printf("Hello!\n");
     int blockId = SearchDirectory(inode, dirname);
+    printf("Search result: %d\n", blockId);
+    /*
     int target_inum;
     if (blockId > 0) {
         // Inode is found. Truncate
@@ -377,9 +384,6 @@ int main(int argc, char **argv) {
         printf("Error\n");
     }
 
-    /* Obtain Root Directory Inode*/
-    root_inode = (struct inode *)header + 1;
-
     inode_stack = CreateInodeCache();
     block_stack = CreateBlockCache();
     GetFreeInodeList();
@@ -387,7 +391,12 @@ int main(int argc, char **argv) {
     //PrintInodeCache(inode_stack);
     GetFreeBlockList();
     //printBuffer(free_block_list);
-    return 0;
+
+    struct inode *root = GetInode(1);
+    printf("root->type: %d\n", root->type);
+
+    root = GetInode(1);
+    printf("root->type: %d\n", root->type);
 
     int pid;
   	if ((pid = Fork()) < 0) {
