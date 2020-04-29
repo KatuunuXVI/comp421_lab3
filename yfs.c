@@ -13,7 +13,7 @@
 // 8
 #define INODE_PER_BLOCK     (BLOCKSIZE / INODESIZE)
 #define DIRSIZE             (int)sizeof(struct dir_entry)
-#define	GET_DIR_COUNT(n)    (n / DIRSIZE)
+#define GET_DIR_COUNT(n)    (n / DIRSIZE)
 
 struct fs_header *header; /* Pointer to File System Header */
 
@@ -63,7 +63,7 @@ struct inode *GetInode(int inode_num) {
         found = (current->inode_number == inode_num);
         current = current->next;
     }
-    printf("inode_num: %d, found: %d\n", inode_num, found);
+
     if (found) {
         RaiseInodeCachePosition(inode_stack, current);
         return current->in;
@@ -196,8 +196,6 @@ int CreateDirectory(int parent_inum, int new_inum, char *dirname);
  */
 int SearchDirectory(struct inode *inode, char *dirname) {
     // if (inode->type != INODE_DIRECTORY) return 0;
-    printf("Hello!\n");
-    printf("dir_entry: %d\n", DIRSIZE);
     // printf("GET_DIR_COUNT: %d\n", GET_DIR_COUNT(inode->size));
     return 0;
 }
@@ -282,14 +280,7 @@ int CreateFile(void *packet, int pid) {
     ((FilePacket *)packet)->inum = 0;
 
     /* Cannot create inside non-directory. */
-    printf("Hello!: %d\n", inum);
-    printf("inode->type: %d\n", inode->type);
-
-    if (inode->type != INODE_DIRECTORY) {
-        printf("Bye!\n");
-        return 0;
-    }
-    printf("Hello!\n");
+    if (inode->type != INODE_DIRECTORY) return 0;
     int blockId = SearchDirectory(inode, dirname);
     printf("Search result: %d\n", blockId);
     /*
@@ -391,12 +382,6 @@ int main(int argc, char **argv) {
     //PrintInodeCache(inode_stack);
     GetFreeBlockList();
     //printBuffer(free_block_list);
-
-    struct inode *root = GetInode(1);
-    printf("root->type: %d\n", root->type);
-
-    root = GetInode(1);
-    printf("root->type: %d\n", root->type);
 
     int pid;
   	if ((pid = Fork()) < 0) {
