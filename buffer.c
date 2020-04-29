@@ -17,12 +17,15 @@ struct buffer *getBuffer(int size) {
 }
 
 void pushToBuffer(struct buffer *buf, int i) {
+    printf("Adding %d\n",i);
     if (buf->full) {
+        printf("Full\n");
         return;
     }
     if (buf->empty) {
         buf->empty = 0;
     }
+    printf("%d added\n",i);
     buf->b[buf->in] = i;
     buf->in++;
     if (buf->in >= buf->size) {
@@ -54,14 +57,12 @@ int popFromBuffer(struct buffer *buf) {
 void printBuffer(struct buffer *buf) {
     int i;
     if (buf->out < buf->in) {
-        printf("Non Circular\n");
         printf("[");
         for (i = buf->out; i < buf->in-1; i++) {
             printf("%d, ", buf->b[i]);
         }
         printf("%d]\n", buf->b[buf->in-1]);
     } else {
-        printf("Circular\n");
         printf("[");
         for (i = buf->out; i < buf->size; i++) {
             printf("%d, ", buf->b[i]);
