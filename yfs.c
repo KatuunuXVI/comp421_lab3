@@ -61,6 +61,7 @@ struct inode *GetInode(int inode_num) {
     int found = 0;
     while (current != NULL && !found) {//Searches until it runs to the bottom of the stack
         found = (current->inode_number == inode_num);
+        if(found) break;
         current = current->next;
     }
 
@@ -83,7 +84,6 @@ struct inode *GetInode(int inode_num) {
  * @param index Index to swap to
  */
 void SearchAndSwap(int arr[], int size, int value, int index) {
-    // printf("Searching and Swapping\n");
     int i = -1;
     int search_index = -1;
     while (i != value && index < size) {
@@ -128,7 +128,10 @@ void GetFreeBlockList() {
     /* Block 0 is the boot block and not used by the file system */
     for (i = 0; i < block_count; i++) {
         buffer[i] = i + first_data_block;
+<<<<<<< HEAD
         // printf("%d\n",i+first_data_block);
+=======
+>>>>>>> 9dd1896341cdcf7b2df1038aa956a6340c94ed96
     }
 
 
@@ -379,8 +382,15 @@ int main(int argc, char **argv) {
     block_stack = CreateBlockCache();
     GetFreeInodeList();
 
-    //PrintInodeCache(inode_stack);
+
     GetFreeBlockList();
+    struct inode *root;
+    root = GetInode(1);
+    printf("root->type: %d\n", root->type);
+    root = GetInode(1);
+    printf("root->type: %d\n", root->type);
+    root = GetInode(1);
+    printf("root->type: %d\n", root->type);
     //printBuffer(free_block_list);
 
     int pid;
