@@ -34,25 +34,25 @@ struct buffer {
  * Constructor message for a new buffer
  * @param size How much space to allocate for the buffer
  */
-struct buffer *getBuffer(int size);
+struct buffer *GetBuffer(int size);
 
 /**
  * Adds a value to the buffers queue
  * @param buf Buffer to add to
  * @param c Character that is being added
  */
-void pushToBuffer(struct buffer *buf, int i);
+void PushToBuffer(struct buffer *buf, int i);
 
 /**
  * Pops the next character from the buffer's queue
  * @param buf Buffer requesting character from
  * @return the character that was popped
  */
-int popFromBuffer(struct buffer *buf);
+int PopFromBuffer(struct buffer *buf);
 /**
  * Prints out the contents of the buffer
  * @param buf Buffer to print
  */
-void printBuffer(struct buffer *buf);
+void PrintBuffer(struct buffer *buf);
 
 #endif //COMP421_LAB3_BUFFER_H

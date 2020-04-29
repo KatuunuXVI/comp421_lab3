@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-struct buffer *getBuffer(int size) {
+struct buffer *GetBuffer(int size) {
     struct buffer* newBuf = malloc(sizeof(struct buffer));
     newBuf->size = size;
     newBuf->b = malloc(sizeof(int) * size);
@@ -16,7 +16,7 @@ struct buffer *getBuffer(int size) {
     return newBuf;
 }
 
-void pushToBuffer(struct buffer *buf, int i) {
+void PushToBuffer(struct buffer *buf, int i) {
     if (buf->full) {
         return;
     }
@@ -33,7 +33,7 @@ void pushToBuffer(struct buffer *buf, int i) {
     }
 }
 
-int popFromBuffer(struct buffer *buf) {
+int PopFromBuffer(struct buffer *buf) {
     if (buf->empty) {
         return '\0';
     }
@@ -51,7 +51,7 @@ int popFromBuffer(struct buffer *buf) {
     return next;
 }
 
-void printBuffer(struct buffer *buf) {
+void PrintBuffer(struct buffer *buf) {
     int i;
     if (buf->out < buf->in) {
         printf("Non Circular\n");

@@ -9,10 +9,14 @@
 #include "buffer.h"
 #include "path.h"
 #include "packet.h"
+#include "dirname.h"
 
-// 8
-#define INODE_PER_BLOCK     (BLOCKSIZE / INODESIZE)
 #define DIRSIZE             (int)sizeof(struct dir_entry)
+#define MAX_DIRECT_SIZE     BLOCKSIZE * NUM_DIRECT
+#define MAX_INDIRECT_SIZE   BLOCKSIZE * (BLOCKSIZE / sizeof(int))
+#define MAX_FILE_SIZE       (int)(MAX_DIRECT_SIZE + MAX_INDIRECT_SIZE)
+#define INODE_PER_BLOCK     (BLOCKSIZE / INODESIZE)
+#define DIR_PER_BLOCK       (BLOCKSIZE / DIRSIZE)
 #define GET_DIR_COUNT(n)    (n / DIRSIZE)
 
 struct fs_header *header; /* Pointer to File System Header */
@@ -44,6 +48,7 @@ void *GetBlock(int block_num) {
     /** If not found in cache, read directly from disk */
     void *block_buffer = malloc(SECTORSIZE);
     ReadSector(block_num, block_buffer);
+    // AddToBlockCache(block_stack, block_buffer, block_num);
     return block_buffer;
 }
 
@@ -75,6 +80,57 @@ struct inode *GetInode(int inode_num) {
     return (struct inode *)inode_block + (inode_num % 8);
 }
 
+/*
+ * Print Everything inside Inode for Debugging purpose
+ */
+void PrintInode(struct inode *inode) {
+    int i;
+    int j;
+    int block_count;
+    int dir_count;
+    int inner_count;
+    struct dir_entry *block;
+    struct int *indirect_block;
+
+    printf("----- Printing Inode -----\n");
+    printf("inode->type: %d\n", inode->type);
+    printf("inode->nlink: %d\n", inode->nlink);
+    printf("inode->reuse: %d\n", inode->reuse);
+    printf("inode->size: %d\n", inode->size);
+
+    if (inode->type == INODE_DIRECTORY) {
+        dir_count = GET_DIR_COUNT(inode->size);
+        printf("dir_count: %d\n", dir_count);
+    }
+
+    block_count = inode->size / BLOCKSIZE;
+    if ((inode->size % BLOCKSIZE) > 0) block_count++;
+    printf("block_count: %d\n", block_count);
+
+    for (i = 0; i < block_count; i++) {
+        printf("inode->direct[%d]: %d\n", i, inode->direct[i]);
+        if (inode->type == INODE_DIRECTORY) {
+            block = GetBlock(inode->direct[i]);
+            if ((i + 1) * BLOCKSIZE > inode->size) {
+                inner_count = dir_count % DIR_PER_BLOCK;
+            } else {
+                inner_count = DIR_PER_BLOCK;
+            }
+            for (j = 0; j < inner_count; j++) {
+                printf("\t- inum: %d\n", block[j].inum);
+                printf("\t- name: %s\n", block[j].name);
+            }
+        }
+    }
+
+    if (inode->size >= MAX_DIRECT_SIZE) {
+        printf("inode->indirect: %d\n", inode->indirect);
+        // indirect_block = GetBlock(inode->indirect);
+    }
+
+    printf("----- End of Inode -----\n");
+}
+
 /**
  * Searches for a value in an array, if it's found swaps it with the value
  * at index. Helper function for GetFreeBlockList
@@ -100,14 +156,14 @@ void SearchAndSwap(int arr[], int size, int value, int index) {
  * Iterates through Inodes and pushes each free one to the buffer
  */
 void GetFreeInodeList() {
-    free_inode_list = getBuffer(header->num_inodes);
+    free_inode_list = GetBuffer(header->num_inodes);
     int i;
     for (i = 1; i <= header->num_inodes; i ++) {
         struct inode *next = GetInode(i);
-        if (next->type == INODE_FREE) pushToBuffer(free_inode_list, i);
+        if (next->type == INODE_FREE) PushToBuffer(free_inode_list, i);
     }
     // printf("Free Inode List\n");
-    // printBuffer(free_inode_list);
+    // PrintBuffer(free_inode_list);
 }
 
 /**
@@ -177,33 +233,143 @@ void GetFreeBlockList() {
 
     int k;
     for (k = 0; k < busy_blocks; k++) {
-        popFromBuffer(free_block_list);
+        PopFromBuffer(free_block_list);
     }
 }
 
 /*
- * TODO:
  * Return -1 if inum has no available room.
  * Create inode. Make sure cache knows it.
  * Register that to inum's inode and update size.
  */
-int CreateDirectory(int parent_inum, int new_inum, char *dirname);
+struct inode* CreateDirectory(struct inode* parent_inode, int parent_inum, int new_inum, char *dirname, short type) {
+    printf("parent_inum: %d\n", parent_inum);
+    printf("new_inum: %d\n", new_inum);
+    printf("dirname: %s\n", dirname);
+
+    printf("Printing parent inode before creating new file\n");
+    PrintInode(parent_inode);
+
+    if (parent_inode->type != INODE_DIRECTORY) return NULL;
+    if (parent_inode->size >= MAX_FILE_SIZE) {
+        fprintf(stderr, "Maximum file size reached.\n");
+        return NULL;
+    }
+
+    /* Verify against number of new blocks required */
+    struct inode *inode = GetInode(new_inum);
+    struct dir_entry *block;
+
+    if (inode->type != INODE_FREE) {
+        fprintf(stderr, "Why did inode buffer had used inode?\n");
+        return NULL;
+    }
+
+    inode->type = type;
+    inode->size = 0;
+    inode->nlink = 0;
+    inode->reuse++;
+
+    /* Create . and .. by default */
+    if (type == INODE_DIRECTORY) {
+        inode->nlink = 2;
+        inode->size = sizeof(struct dir_entry) * 2;
+        inode->direct[0] = PopFromBuffer(free_block_list);
+        block = GetBlock(inode->direct[0]);
+        block[0].inum = new_inum;
+        block[1].inum = parent_inum;
+        SetDirectoryName(block[0].name, ".", 0, 1);
+        SetDirectoryName(block[1].name, "..", 0, 2);
+    }
+
+    /* Direct is full. Use indirect. */
+    int *indirect_block;
+    int outer_index;
+    int inner_index;
+    if (parent_inode->size >= MAX_DIRECT_SIZE) {
+        /* If it just reached MAX_DIRECT_SIZE, need extra block for indirect */
+        if (parent_inode->size == MAX_DIRECT_SIZE) {
+            parent_inode->indirect = PopFromBuffer(free_block_list);
+        }
+        indirect_block = (int *)GetBlock(parent_inode->indirect);
+        outer_index = (parent_inode->size - MAX_DIRECT_SIZE) / BLOCKSIZE;
+        inner_index = GET_DIR_COUNT(parent_inode->size) % DIR_PER_BLOCK;
+
+        /*
+         * If size is perfectly divisible by DIR_PER_BLOCK,
+         * that means it is time to allocate new block.
+         */
+        if (inner_index == 0) {
+            indirect_block[outer_index] = PopFromBuffer(free_block_list);
+        }
+
+        block = GetBlock(indirect_block[outer_index]);
+    } else {
+        outer_index = parent_inode->size / BLOCKSIZE;
+        inner_index = GET_DIR_COUNT(parent_inode->size) % DIR_PER_BLOCK;
+        printf("outer_index: %d\n", outer_index);
+        printf("inner_index: %d\n", inner_index);
+        /*
+         * If size is perfectly divisible by DIR_PER_BLOCK,
+         * that means it is time to allocate new block.
+         */
+        if (inner_index == 0) {
+            parent_inode->direct[outer_index] = PopFromBuffer(free_block_list);
+        }
+
+        printf("parent_inode->direct[outer_index]: %d\n", parent_inode->direct[outer_index]);
+        block = GetBlock(parent_inode->direct[outer_index]);
+    }
+
+
+    block[inner_index].inum = new_inum;
+    SetDirectoryName(block[inner_index].name, dirname, 0, DIRNAMELEN);
+    parent_inode->size += DIRSIZE;
+    parent_inode->nlink += 1;
+
+    printf("Printing parent inode before creating new file\n");
+    PrintInode(parent_inode);
+    return inode;
+}
 
 /*
  * Given directory inode and dirname,
- * find inode which matches with dirname.
+ * find inode number which matches with dirname.
  */
 int SearchDirectory(struct inode *inode, char *dirname) {
-    // if (inode->type != INODE_DIRECTORY) return 0;
-    // printf("GET_DIR_COUNT: %d\n", GET_DIR_COUNT(inode->size));
+    if (inode->type != INODE_DIRECTORY) return 0;
+    struct dir_entry *block;
+    int dir_index = 0;
+    int prev_index = -1;
+    int outer_index;
+    int inner_index;
+
+    for (; dir_index < GET_DIR_COUNT(inode->size); dir_index++) {
+        outer_index = inode->size / BLOCKSIZE;
+        inner_index = dir_index % DIR_PER_BLOCK;
+
+        /* Get block if outer_index is incremented */
+        if (prev_index < outer_index) {
+            block = GetBlock(inode->direct[outer_index]);
+        }
+
+        if (CompareDirname(block[inner_index].name, dirname) == 0) {
+            return block[inner_index].inum;
+        }
+    }
+
     return 0;
 }
 
 /*
- * TODO:
- * Set size as 0. Free all of its blocks.
+ * Truncate regular file inode. Free all of its blocks.
  */
-int TruncateInode(struct inode *inode);
+void TruncateInode(struct inode *inode) {
+    if (inode->type != INODE_REGULAR) return;
+
+    inode->size = 0;
+    inode->nlink = 0;
+}
 
 /*
  * TODO:
@@ -261,9 +427,11 @@ int GetFile(void *packet, int pid) {
 }
 
 int CreateFile(void *packet, int pid) {
-    struct inode *inode;
+    struct inode *parent_inode;
+    struct inode *new_inode;
+
     char dirname[DIRNAMELEN];
-    int inum = ((DataPacket *)packet)->arg1;
+    int parent_inum = ((DataPacket *)packet)->arg1;
     void *target = ((DataPacket *)packet)->pointer;
 
     if (CopyFrom(pid, dirname, target, DIRNAMELEN) < 0) {
@@ -271,7 +439,7 @@ int CreateFile(void *packet, int pid) {
         return -1;
     }
 
-    inode = GetInode(inum);
+    parent_inode = GetInode(parent_inum);
 
     /* Bleach packet for reuse */
     memset(packet, 0, PACKET_SIZE);
@@ -279,86 +447,82 @@ int CreateFile(void *packet, int pid) {
     ((FilePacket *)packet)->inum = 0;
 
     /* Cannot create inside non-directory. */
-    if (inode->type != INODE_DIRECTORY) return 0;
-    int blockId = SearchDirectory(inode, dirname);
-    printf("Search result: %d\n", blockId);
-    /*
-    int target_inum;
-    if (blockId > 0) {
+    if (parent_inode->type != INODE_DIRECTORY) return 0;
+    int target_inum = SearchDirectory(parent_inode, dirname);
+    printf("target_inum: %d\n", target_inum);
+
+    if (target_inum > 0) {
         // Inode is found. Truncate
-        struct dir_entry *dir = (struct dir_entry *)GetBlock(blockId);
-        inode = GetInode(dir->inum);
-        TruncateInode(inode);
-        target_inum = dir->inum;
+        new_inode = GetInode(target_inum);
+        TruncateInode(new_inode);
     } else {
         // Create new file if not found
-        target_inum = GetNextInodeNumber();
-        inode = CreateDirectory(inum, next_inum, dirname);
+        target_inum = PopFromBuffer(free_inode_list);
+        new_inode = CreateDirectory(parent_inode, parent_inum, target_inum, dirname, INODE_REGULAR);
     }
 
     ((FilePacket *)packet)->inum = target_inum;
-    ((FilePacket *)packet)->type = inode->type;
-    ((FilePacket *)packet)->size = inode->size;
-    ((FilePacket *)packet)->nlink = inode->nlink;
-    */
+    ((FilePacket *)packet)->type = new_inode->type;
+    ((FilePacket *)packet)->size = new_inode->size;
+    ((FilePacket *)packet)->nlink = new_inode->nlink;
     return 0;
 }
 
-void ReadFile(DataPacket *packet, int pid) {
-    int inum = packet->arg1;
-    int pos = packet->arg2;
-    int size = packet->arg3;
-    void *buffer = packet->pointer;
+// void ReadFile(DataPacket *packet, int pid) {
+//     int inum = packet->arg1;
+//     int pos = packet->arg2;
+//     int size = packet->arg3;
+//     void *buffer = packet->pointer;
+//
+//     // int result = ReadFromInode(
+//     //     pid,
+//     //     inum,
+//     //     ((DataPacket *)packet)->arg2, // pos
+//     //     ((DataPacket *)packet)->arg3, // size
+//     //     ((DataPacket *)packet)->pointer // buffer
+//     // );
+//
+//     memset(packet, 0, PACKET_SIZE);
+//     packet->packet_type = MSG_READ_FILE;
+//     packet->arg1 = -1;
+// }
 
-    // int result = ReadFromInode(
-    //     pid,
-    //     inum,
-    //     ((DataPacket *)packet)->arg2, // pos
-    //     ((DataPacket *)packet)->arg3, // size
-    //     ((DataPacket *)packet)->pointer // buffer
-    // );
+// void WriteFile(DataPacket *packet, int pid) {
+//     int inum = packet->arg1;
+//     int pos = packet->arg2;
+//     int size = packet->arg3;
+//     void *buffer = packet->pointer;
+//
+//     // int result = WriteToInode(
+//     //     pid,
+//     //     inum,
+//     //     ((DataPacket *)packet)->arg2, // pos
+//     //     ((DataPacket *)packet)->arg3, // size
+//     //     ((DataPacket *)packet)->pointer // buffer
+//     // );
+//
+//     memset(packet, 0, PACKET_SIZE);
+//     packet->packet_type = MSG_WRITE_FILE;
+//     packet->arg1 = -1;
+// }
 
-    memset(packet, 0, PACKET_SIZE);
-    packet->packet_type = MSG_READ_FILE;
-    packet->arg1 = -1;
-}
-
-void WriteFile(DataPacket *packet, int pid) {
-    int inum = packet->arg1;
-    int pos = packet->arg2;
-    int size = packet->arg3;
-    void *buffer = packet->pointer;
-
-    // int result = WriteToInode(
-    //     pid,
-    //     inum,
-    //     ((DataPacket *)packet)->arg2, // pos
-    //     ((DataPacket *)packet)->arg3, // size
-    //     ((DataPacket *)packet)->pointer // buffer
-    // );
-
-    memset(packet, 0, PACKET_SIZE);
-    packet->packet_type = MSG_WRITE_FILE;
-    packet->arg1 = -1;
-}
-
-void CreateDir(void *packet, int pid) {
-    char dirname[DIRNAMELEN];
-    int inum = ((DataPacket *)packet)->arg1;
-    void *target = ((DataPacket *)packet)->pointer;
-
-    memset(packet, 0, PACKET_SIZE);
-    ((FilePacket *)packet)->packet_type = MSG_CREATE_DIR;
-    ((FilePacket *)packet)->inum = 0;
-}
-
-void DeleteDir(DataPacket *packet, int pid) {
-    int inum = packet->arg1;
-
-    memset(packet, 0, PACKET_SIZE);
-    packet->packet_type = MSG_DELETE_DIR;
-    packet->arg1 = -1;
-}
+// void CreateDir(void *packet, int pid) {
+//     char dirname[DIRNAMELEN];
+//     int inum = ((DataPacket *)packet)->arg1;
+//     void *target = ((DataPacket *)packet)->pointer;
+//
+//     memset(packet, 0, PACKET_SIZE);
+//     ((FilePacket *)packet)->packet_type = MSG_CREATE_DIR;
+//     ((FilePacket *)packet)->inum = 0;
+// }
+//
+// void DeleteDir(DataPacket *packet, int pid) {
+//     int inum = packet->arg1;
+//
+//     memset(packet, 0, PACKET_SIZE);
+//     packet->packet_type = MSG_DELETE_DIR;
+//     packet->arg1 = -1;
+// }
 
 void SyncCache() {
 
@@ -380,6 +544,11 @@ int main(int argc, char **argv) {
     GetFreeInodeList();
     GetFreeBlockList();
 
+    struct dir_entry *block = GetBlock(7);
+    printf("block: %p\n", block);
+    printf("block[0]: %p\n", block[0]);
+    printf("block[0].inum: %d\n", block[0].inum);
+
     int pid;
   	if ((pid = Fork()) < 0) {
   	    fprintf(stderr, "Cannot Fork.\n");
@@ -388,7 +557,6 @@ int main(int argc, char **argv) {
 
     /* Child process exec program */
     if (pid == 0) {
-        GetBlock(7);
         Exec(argv[1], argv + 1);
         fprintf(stderr, "Cannot Exec.\n");
         return -1;
@@ -412,18 +580,18 @@ int main(int argc, char **argv) {
                 break;
             case MSG_READ_FILE:
                 printf("MSG_READ_FILE received from pid: %d\n", pid);
-                ReadFile(packet, pid);
+                // ReadFile(packet, pid);
                 break;
             case MSG_WRITE_FILE:
                 printf("MSG_WRITE_FILE received from pid: %d\n", pid);
-                WriteFile(packet, pid);
+                // WriteFile(packet, pid);
             case MSG_CREATE_DIR:
                 printf("MSG_CREATE_DIR received from pid: %d\n", pid);
-                CreateDir(packet, pid);
+                // CreateDir(packet, pid);
                 break;
             case MSG_DELETE_DIR:
                 printf("MSG_DELETE_DIR received from pid: %d\n", pid);
-                DeleteDir(packet, pid);
+                // DeleteDir(packet, pid);
                 break;
             case MSG_SYNC:
                 printf("MSG_SYNC received from pid: %d\n", pid);
