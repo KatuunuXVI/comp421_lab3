@@ -66,6 +66,7 @@ void WriteBackInode(struct inode_cache_entry* out) {
  * @param recent_access Entry to move
  */
 void RaiseInodeCachePosition(struct inode_cache* stack, struct inode_cache_entry* recent_access) {
+    if(recent_access->inode_number == stack->top->inode_number) return;
     recent_access->next->prev = recent_access->prev;
     recent_access->prev->next = recent_access->next;
     recent_access->next = stack->top;
