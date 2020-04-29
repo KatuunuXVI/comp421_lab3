@@ -9,6 +9,7 @@
 
 # Ignore objects
 *.o
+*.a
 
 # Ignore DISK created from format
 DISK

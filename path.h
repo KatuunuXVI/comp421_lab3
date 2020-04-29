@@ -1,13 +1,19 @@
 #include <comp421/filesystem.h>
 
-struct PathIterator {
+typedef struct PathIterator {
     struct PathIterator *head;
     struct PathIterator *next;
     char data[DIRNAMELEN];
-};
+} PathIterator;
 
-struct PathIterator *ParsePath(char *pathname);
+/*
+ * Given pathname as Yalnix argument, parse it
+ * into a linked list of component.
+ */
+PathIterator *ParsePath(char *pathname);
 
-int DeletePathIterator(struct PathIterator *it);
-
-void TestPathIterator();
+/*
+ * Free pathIterator linked list after finished using it.
+ * You must provided the head of the linked list.
+ */
+int DeletePathIterator(PathIterator *it);
