@@ -128,10 +128,6 @@ void GetFreeBlockList() {
     /* Block 0 is the boot block and not used by the file system */
     for (i = 0; i < block_count; i++) {
         buffer[i] = i + first_data_block;
-<<<<<<< HEAD
-        // printf("%d\n",i+first_data_block);
-=======
->>>>>>> 9dd1896341cdcf7b2df1038aa956a6340c94ed96
     }
 
 
@@ -380,18 +376,9 @@ int main(int argc, char **argv) {
 
     inode_stack = CreateInodeCache();
     block_stack = CreateBlockCache();
+
     GetFreeInodeList();
-
-
     GetFreeBlockList();
-    struct inode *root;
-    root = GetInode(1);
-    printf("root->type: %d\n", root->type);
-    root = GetInode(1);
-    printf("root->type: %d\n", root->type);
-    root = GetInode(1);
-    printf("root->type: %d\n", root->type);
-    //printBuffer(free_block_list);
 
     int pid;
   	if ((pid = Fork()) < 0) {
