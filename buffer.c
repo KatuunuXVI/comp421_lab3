@@ -54,14 +54,12 @@ int popFromBuffer(struct buffer *buf) {
 void printBuffer(struct buffer *buf) {
     int i;
     if (buf->out < buf->in) {
-        printf("Non Circular\n");
         printf("[");
         for (i = buf->out; i < buf->in-1; i++) {
             printf("%d, ", buf->b[i]);
         }
         printf("%d]\n", buf->b[buf->in-1]);
     } else {
-        printf("Circular\n");
         printf("[");
         for (i = buf->out; i < buf->size; i++) {
             printf("%d, ", buf->b[i]);
