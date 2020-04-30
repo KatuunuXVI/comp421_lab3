@@ -42,10 +42,9 @@ void *GetBlock(int block_num) {
     }
 
     if (found) {
-        printf("Cached Block\n");
         return current->block;
     }
-    printf("Not Cached Block\n");
+
     /** If not found in cache, read directly from disk */
     void *block_buffer = malloc(SECTORSIZE);
     ReadSector(block_num, block_buffer);
@@ -77,8 +76,7 @@ struct inode *GetInode(int inode_num) {
     /**If it's not in the Inode Cache, check the Block */
     void* inode_block = GetBlock((inode_num / 8) + 1);
     AddToInodeCache(inode_stack, (struct inode *)inode_block + (inode_num % 8), inode_num); /**Add inode to cache, when accessed*/
-    struct inode* x = (struct inode *)inode_block + (inode_num % 8);
-    return x;
+    return (struct inode *)inode_block + (inode_num % 8);
 }
 
 /**
@@ -109,9 +107,7 @@ void GetFreeInodeList() {
     free_inode_list = getBuffer(header->num_inodes);
     int i;
     for (i = 1; i <= header->num_inodes; i ++) {
-        printf("Searching for %d\n", i);
         struct inode *next = GetInode(i);
-        printf("%d type: %d\n",i,next->type);
         if (next->type == INODE_FREE) pushToBuffer(free_inode_list, i);
     }
     // printf("Free Inode List\n");
@@ -385,11 +381,9 @@ int main(int argc, char **argv) {
     inode_stack = CreateInodeCache();
     block_stack = CreateBlockCache();
 
-    printf("BLock Stack created\n");
     GetFreeInodeList();
-    printBuffer(free_inode_list);
     GetFreeBlockList();
-    printf("Root Type: %d\n",GetInode(1)->type);
+
     int pid;
   	if ((pid = Fork()) < 0) {
   	    fprintf(stderr, "Cannot Fork.\n");
