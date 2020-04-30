@@ -67,10 +67,17 @@ void WriteBackInode(struct inode_cache_entry* out) {
  */
 void RaiseInodeCachePosition(struct inode_cache* stack, struct inode_cache_entry* recent_access) {
     if(recent_access->inode_number == stack->top->inode_number) return;
-    recent_access->next->prev = recent_access->prev;
-    recent_access->prev->next = recent_access->next;
-    recent_access->next = stack->top;
-    stack->top = recent_access;
+    if(recent_access->inode_number == stack->base->inode_number) {
+        recent_access->prev->next = NULL;
+        recent_access->next = stack->top;
+        stack->top = recent_access;
+    } else {
+        recent_access->next->prev = recent_access->prev;
+        recent_access->prev->next = recent_access->next;
+        recent_access->next = stack->top;
+        stack->top = recent_access;
+    }
+
 }
 
 /**
@@ -104,7 +111,6 @@ void AddToBlockCache(struct block_cache *stack, void* block, int block_number) {
     struct block_cache_entry* item = malloc(sizeof(struct block_cache_entry));
     item->block_number = block_number;
     item->block = block;
-
     /** If the stack is empty the entry becomes both the top and base*/
     if (!stack->size) {
         stack->base = item;
@@ -115,9 +121,9 @@ void AddToBlockCache(struct block_cache *stack, void* block, int block_number) {
         stack->top->prev = item;
         stack->top = item;
     }
-
     /**If the cache is at max size, the last used block is removed. */
     if (stack->size == BLOCK_CACHESIZE) {
+        printf("Full\n");
         if(stack->base->dirty) WriteSector(stack->base->block_number,stack->base->block);
         stack->base = stack->base->prev;
         free(stack->base->next);
@@ -131,10 +137,18 @@ void AddToBlockCache(struct block_cache *stack, void* block, int block_number) {
  * Repositions block at top of stack whenever used
  */
 void RaiseBlockCachePosition(struct block_cache *stack, struct block_cache_entry* recent_access) {
-    recent_access->next->prev = recent_access->prev;
-    recent_access->prev->next = recent_access->next;
-    recent_access->next = stack->top;
-    stack->top = recent_access;
+    if(recent_access->block_number == stack->top->block_number) return;
+    if(recent_access->block_number == stack->base->block_number) {
+        recent_access->prev->next = NULL;
+        recent_access->next = stack->top;
+        stack->top = recent_access;
+    } else {
+        recent_access->next->prev = recent_access->prev;
+        recent_access->prev->next = recent_access->next;
+        recent_access->next = stack->top;
+        stack->top = recent_access;
+    }
+
 }
 
 void WriteBackBlock(struct block_cache_entry* out) {
@@ -147,9 +161,10 @@ void WriteBackBlock(struct block_cache_entry* out) {
  * Prints out the Block Cache as a stack
  */
  void PrintBlockCache(struct block_cache* stack) {
-    struct block_cache_entry* position = stack->top;
-    while (position != NULL) {
-        printf("| %d |\n", position->block_number);
-        position = position->next;
-    }
+     struct block_cache_entry* position = stack->top;
+     while (position != NULL) {
+         printf("While Loop\n");
+         printf("| %d |\n", position->block_number);
+         position = position->next;
+     }
  }

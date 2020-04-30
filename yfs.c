@@ -41,14 +41,19 @@ void *GetBlock(int block_num) {
     struct block_cache_entry *current = block_stack->top;
     while (current != NULL && !found) {
         found = (current->block_number == block_num);
+        if(found) break;
         current = current->next;
     }
-    if (found) return current;
+
+    if (found) {
+        return current->block;
+    }
 
     /** If not found in cache, read directly from disk */
     void *block_buffer = malloc(SECTORSIZE);
     ReadSector(block_num, block_buffer);
-    // AddToBlockCache(block_stack, block_buffer, block_num);
+    struct inode* x = (struct inode *)block_buffer;
+    AddToBlockCache(block_stack, block_buffer, block_num);
     return block_buffer;
 }
 
@@ -60,7 +65,6 @@ void *GetBlock(int block_num) {
 struct inode *GetInode(int inode_num) {
     /** Inode number must be in valid range*/
     assert(inode_num >= 1 && inode_num <= header->num_inodes);
-
     /** First Check the Inode Cache */
     struct inode_cache_entry *current = inode_stack->top;
     int found = 0;
@@ -69,7 +73,6 @@ struct inode *GetInode(int inode_num) {
         if(found) break;
         current = current->next;
     }
-
     if (found) {
         RaiseInodeCachePosition(inode_stack, current);
         return current->in;
@@ -90,7 +93,7 @@ void PrintInode(struct inode *inode) {
     int dir_count;
     int inner_count;
     struct dir_entry *block;
-    struct int *indirect_block;
+    int *indirect_block;
 
     printf("----- Printing Inode -----\n");
     printf("inode->type: %d\n", inode->type);
