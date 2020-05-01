@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "path.h"
+#include "dirname.h"
 
 /*
 Arg: /abc/def/ghi.c
@@ -34,18 +35,6 @@ Result:
 
 / -> a -> b -> c -> . -> NULL
 */
-
-/*
- * Private helper method which fills up 30 char buffer
- * with provided string and rest with null string.
- */
-void SetDirectoryName(char *target, char *path, int start, int end) {
-    int i;
-    for (i = 0; i < DIRNAMELEN; i++) {
-        if (i < end - start) target[i] = path[start + i];
-        else target[i] = '\0';
-    }
-}
 
 /*
  * Private helper method which allocate PathIterator.
