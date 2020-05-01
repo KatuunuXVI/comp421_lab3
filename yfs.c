@@ -30,7 +30,7 @@ struct buffer* free_block_list; /* List of blocks ready to allocate for file dat
  */
 void *GetBlock(int block_num) {
     /**Must be a valid block number */
-    assert(block_num >= 1 && block_num <= header->num_inodes);
+    assert(block_num >= 1 && block_num <= header->num_blocks);
 
     /** First Check Block Cache*/
     int found = 0;
@@ -47,7 +47,6 @@ void *GetBlock(int block_num) {
     /** If not found in cache, read directly from disk */
     void *block_buffer = malloc(SECTORSIZE);
     ReadSector(block_num, block_buffer);
-    struct inode* x = (struct inode *)block_buffer;
     AddToBlockCache(block_stack, block_buffer, block_num);
     return block_buffer;
 }
@@ -62,29 +61,12 @@ struct inode *GetInode(int inode_num) {
     assert(inode_num >= 1 && inode_num <= header->num_inodes);
     /** First Check the Inode Cache */
     struct inode* current = LookUpInode(inode_stack,inode_num);
-    if(current  != NULL) {
-        printf("Inode Looked Up\n");
-        printf("Inode Type: %d\n",current->type);
-        printf("Returning\n");
-        return current;
-    }
-    /*struct inode_cache_entry *current = inode_stack->top;
-    int found = 0;
-    while (current != NULL && !found) {//Searches until it runs to the bottom of the stack
-        found = (current->inode_number == inode_num);
-        if(found) break;
-        current = current->next_lru;
-    }
-    if (found) {
-        RaiseInodeCachePosition(inode_stack, current);
-        return current->in;
-    }*/
+    if(current  != NULL) return current;
     /**If it's not in the Inode Cache, check the Block */
     void* inode_block = GetBlock((inode_num / 8) + 1);
-    AddToInodeCache(inode_stack, (struct inode *)inode_block + (inode_num % 8), inode_num); /**Add inode to cache, when accessed*/
-    //PrintInodeCacheHashSet(inode_stack);
-    struct inode* x = (struct inode *)inode_block + (inode_num % 8);
-    return x;
+    /**Add inode to cache, when accessed*/
+    AddToInodeCache(inode_stack, (struct inode *)inode_block + (inode_num % 8), inode_num);
+    return (struct inode *)inode_block + (inode_num % 8);
 }
 
 /**
@@ -115,10 +97,8 @@ void GetFreeInodeList() {
     free_inode_list = getBuffer(header->num_inodes);
     int i;
     for (i = 1; i <= header->num_inodes; i ++) {
-        printf("Checking Inode %d\n",i);
         struct inode *next = GetInode(i);
         if (next->type == INODE_FREE) pushToBuffer(free_inode_list, i);
-        PrintInodeCacheHashSet(inode_stack);
     }
 
 }
@@ -209,6 +189,8 @@ int CreateDirectory(int parent_inum, int new_inum, char *dirname);
 int SearchDirectory(struct inode *inode, char *dirname) {
     // if (inode->type != INODE_DIRECTORY) return 0;
     // printf("GET_DIR_COUNT: %d\n", GET_DIR_COUNT(inode->size));
+    (void) inode;
+    (void) dirname;
     return 0;
 }
 
@@ -322,7 +304,11 @@ void ReadFile(DataPacket *packet, int pid) {
     int pos = packet->arg2;
     int size = packet->arg3;
     void *buffer = packet->pointer;
-
+    (void)buffer;
+    (void)size;
+    (void)pos;
+    (void)inum;
+    (void)pid;
     // int result = ReadFromInode(
     //     pid,
     //     inum,
@@ -341,7 +327,11 @@ void WriteFile(DataPacket *packet, int pid) {
     int pos = packet->arg2;
     int size = packet->arg3;
     void *buffer = packet->pointer;
-
+    (void)buffer;
+    (void)size;
+    (void)pos;
+    (void)inum;
+    (void)pid;
     // int result = WriteToInode(
     //     pid,
     //     inum,
@@ -359,7 +349,11 @@ void CreateDir(void *packet, int pid) {
     char dirname[DIRNAMELEN];
     int inum = ((DataPacket *)packet)->arg1;
     void *target = ((DataPacket *)packet)->pointer;
-
+    (void)target;
+    (void)packet;
+    (void)inum;
+    (void)pid;
+    (void)dirname;
     memset(packet, 0, PACKET_SIZE);
     ((FilePacket *)packet)->packet_type = MSG_CREATE_DIR;
     ((FilePacket *)packet)->inum = 0;
@@ -367,7 +361,9 @@ void CreateDir(void *packet, int pid) {
 
 void DeleteDir(DataPacket *packet, int pid) {
     int inum = packet->arg1;
-
+    (void)packet;
+    (void)inum;
+    (void)pid;
     memset(packet, 0, PACKET_SIZE);
     packet->packet_type = MSG_DELETE_DIR;
     packet->arg1 = -1;
@@ -377,8 +373,67 @@ void SyncCache() {
 
 }
 
+void TestInodeCache() {
+    int i;
+    int inode_number;
+    struct inode* inode;
+    for(i = 1; i <= 64; i++) {
+        inode_number = (rand()%header->num_inodes)+1;
+        printf("Call %d: Calling Inode %d\n",i,inode_number);
+        inode = GetInode(inode_number);
+        printf("Inode Type: %d\n",inode->type);
+        printf("Cache Hash Table: \n");
+        PrintInodeCacheHashSet(inode_stack);
+        printf("Cache Stack\n");
+        PrintInodeCacheStack(inode_stack);
+        printf("Cache Size: %d\n",inode_stack->stack_size);
+    }
+    int j;
+    for(i = 1; i <= header->num_inodes; i++) {
+        printf("Calling Inode %d\n",i);
+        for(j = 0; j < 64; j++) {
+            GetInode(i);
+        }
+        printf("%d Calls to Inode %d Successful\n",j,i);
+        printf("Cache Hash Table: \n");
+        PrintInodeCacheHashSet(inode_stack);
+        printf("Cache Stack\n");
+        PrintInodeCacheStack(inode_stack);
+    }
+
+}
+
+void TestBlockCache() {
+    int i;
+    int block_number;
+    for(i = 1; i <= 64; i++) {
+        block_number = (rand()%header->num_blocks)+1;
+        printf("Call %d: Calling Block %d\n",i,block_number);
+        GetBlock(block_number);
+        printf("Cache Hash Table: \n");
+        PrintBlockCacheHashSet(block_stack);
+        printf("Cache Stack\n");
+        PrintBlockCacheStack(block_stack);
+        printf("Cache Size: %d\n",block_stack->stack_size);
+    }
+    int j;
+    for(i = 1; i <= header->num_blocks; i++) {
+        printf("Calling Block %d\n",i);
+        for(j = 0; j < 64; j++) {
+            GetBlock(i);
+        }
+        printf("%d Calls to Inode %d Successful\n",j,i);
+        printf("Cache Hash Table: \n");
+        PrintBlockCacheHashSet(block_stack);
+        printf("Cache Stack\n");
+        PrintBlockCacheStack(block_stack);
+    }
+
+}
+
 int main(int argc, char **argv) {
     Register(FILE_SERVER);
+    (void)argc;
     /* Obtain File System Header */
     void *sector_one = malloc(SECTORSIZE);
     if (ReadSector(1, sector_one) == 0) {
@@ -386,21 +441,23 @@ int main(int argc, char **argv) {
     } else {
         printf("Error\n");
     }
-    printf("Inodes: %d\n",header->num_inodes);
-    printf("Creating Inode Cache\n");
     inode_stack = CreateInodeCache(header->num_inodes);
+    printf("Cache Created\n");
+    printf("Cache Hash Table: \n");
     PrintInodeCacheHashSet(inode_stack);
-    printf("Creating Block Cache\n");
-    block_stack = CreateBlockCache();
-    printf("Creating Free Inode List\n");
+    printf("Cache Stack\n");
+    PrintInodeCacheStack(inode_stack);
+    block_stack = CreateBlockCache(header->num_blocks);
     GetFreeInodeList();
-    printf("Free INode List Gotten\n");
-    PrintInodeCacheHashSet(inode_stack);
-    printf("Creating Free Block List\n");
     GetFreeBlockList();
-    struct inode * root = GetInode(1);
-    printf("Root Type: %d\n",root->type);
-    return(0);
+    printf("Free Inode List Obtained\n");
+    printf("Cache Hash Table: \n");
+    PrintInodeCacheHashSet(inode_stack);
+    printf("Cache Stack\n");
+    PrintInodeCacheStack(inode_stack);
+    TestInodeCache();
+    TestBlockCache();
+
     int pid;
   	if ((pid = Fork()) < 0) {
   	    fprintf(stderr, "Cannot Fork.\n");

@@ -1,12 +1,13 @@
 #ifndef COMP421_LAB3_CACHE_H
 #define COMP421_LAB3_CACHE_H
 
+
 struct block_cache {
     struct block_cache_entry* top; //Top of the cache stack
     struct block_cache_entry* base; //Bottom of the cache stack
     struct block_cache_entry** hash_set;
-    int size; //Number of entries in the cache stack
-
+    int stack_size; //Number of entries in the cache stack
+    int hash_size;
 };
 
 struct block_cache_entry {
@@ -14,6 +15,7 @@ struct block_cache_entry {
     int block_number; //Item that this entry represents. Can either be a block or inode
     struct block_cache_entry* prev_lru; //Previous Block in Stack
     struct block_cache_entry* next_lru; //Next Block in Stack
+    struct block_cache_entry* prev_hash;
     struct block_cache_entry* next_hash;
     int dirty; //Whether or not this
 };
@@ -49,17 +51,21 @@ void WriteBackInode(struct inode_cache_entry* out);
 
 void PrintInodeCacheHashSet(struct inode_cache* stack);
 
-void PrintInodeCache(struct inode_cache* stack);
+void PrintInodeCacheStack(struct inode_cache* stack);
 
-struct block_cache *CreateBlockCache();
+struct block_cache *CreateBlockCache(int num_blocks);
 
 void AddToBlockCache(struct block_cache *stack, void* block, int block_number);
+
+void* LookUpBlock(struct block_cache *stack, int block_number);
 
 void RaiseBlockCachePosition(struct block_cache *stack, struct block_cache_entry* recent_access);
 
 void WriteBackBlock(struct block_cache_entry* out);
 
-void PrintBlockCache(struct block_cache* stack);
+void PrintBlockCacheHashSet(struct block_cache* stack);
+
+void PrintBlockCacheStack(struct block_cache* stack);
 
 int HashIndex(int key_value);
 #endif //COMP421_LAB3_CACHE_H
