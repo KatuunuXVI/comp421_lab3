@@ -17,15 +17,12 @@ struct buffer *getBuffer(int size) {
 }
 
 void pushToBuffer(struct buffer *buf, int i) {
-    printf("Adding %d\n",i);
     if (buf->full) {
-        printf("Full\n");
         return;
     }
     if (buf->empty) {
         buf->empty = 0;
     }
-    printf("%d added\n",i);
     buf->b[buf->in] = i;
     buf->in++;
     if (buf->in >= buf->size) {
