@@ -12,10 +12,10 @@ void IntializeOpenFileTable() {
     int i;
     if (initialized == 1) return;
     for (i = 0; i < MAX_OPEN_FILES; i++) {
-        open_file_table[0].id = i;
-        open_file_table[0].used = 0;
-        open_file_table[0].inum = 0;
-        open_file_table[0].pos = 0;
+        open_file_table[i].id = i;
+        open_file_table[i].used = 0;
+        open_file_table[i].inum = 0;
+        open_file_table[i].pos = 0;
     }
     initialized = 1;
 }

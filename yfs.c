@@ -18,6 +18,7 @@
 #define INODE_PER_BLOCK     (BLOCKSIZE / INODESIZE)
 #define DIR_PER_BLOCK       (BLOCKSIZE / DIRSIZE)
 #define GET_DIR_COUNT(n)    (n / DIRSIZE)
+#define GET_BLOCK_COUNT(n)  (n / BLOCKSIZE)
 
 struct fs_header *header; /* Pointer to File System Header */
 
@@ -63,6 +64,7 @@ void *GetBlock(int block_num) {
  * @return A pointer to where the inode is
  */
 struct inode *GetInode(int inode_num) {
+    printf("GetInode: %d\n", inode_num);
     /** Inode number must be in valid range*/
     assert(inode_num >= 1 && inode_num <= header->num_inodes);
     /** First Check the Inode Cache */
@@ -381,19 +383,14 @@ void TruncateInode(struct inode *inode) {
  */
 int ReadFromInode(int pid, int inum, int pos, int size, char *buffer);
 
-/*
- * TODO:
- * Write to inode from pos to pos + size with data obtained from CopyFrom.
- * Return copied size. Return -1 if nothing is copied.
- */
-int WriteToInode(int pid, int inum, int pos, int size, char *buffer);
-
 
 /*************************
  * File Request Hanlders *
  *************************/
 int GetFile(void *packet, int pid) {
-    struct inode *inode;
+    struct inode *parent_inode;
+    struct inode *target_inode;
+
     char dirname[DIRNAMELEN];
     int inum = ((DataPacket *)packet)->arg1;
     void *target = ((DataPacket *)packet)->pointer;
@@ -403,7 +400,10 @@ int GetFile(void *packet, int pid) {
         return -1;
     }
 
-    inode = GetInode(inum);
+    printf("GetFile - inum: %d\n", inum);
+    printf("GetFile - dirname: %s\n", dirname);
+    parent_inode = GetInode(inum);
+    PrintInode(parent_inode);
 
     /* Bleach packet for reuse */
     memset(packet, 0, PACKET_SIZE);
@@ -411,21 +411,17 @@ int GetFile(void *packet, int pid) {
     ((FilePacket *)packet)->inum = 0;
 
     /* Cannot search inside non-directory. */
-    if (inode->type != INODE_DIRECTORY) return 0;
+    if (parent_inode->type != INODE_DIRECTORY) return 0;
 
-    /*
-    // Search inode to find relevant block
-    int blockId = SearchDirectory(inode, dirname);
-    if (blockId == 0) return 0;
+    int target_inum = SearchDirectory(parent_inode, dirname);
+    if (target_inum == 0) return 0;
+    printf("target_inum: %d\n", target_inum);
 
-    // Find inode of target directory
-    struct dir_entry *dir = (struct dir_entry *)GetBlock(blockId);
-    inode = GetInode(dir->inum);
-    ((FilePacket *)packet)->inum = dir->inum;
-    ((FilePacket *)packet)->type = inode->type;
-    ((FilePacket *)packet)->size = inode->size;
-    ((FilePacket *)packet)->nlink = inode->nlink;
-    */
+    target_inode = GetInode(target_inum);
+    ((FilePacket *)packet)->inum = target_inum;
+    ((FilePacket *)packet)->type = target_inode->type;
+    ((FilePacket *)packet)->size = target_inode->size;
+    ((FilePacket *)packet)->nlink = target_inode->nlink;
     return 0;
 }
 
@@ -451,9 +447,8 @@ int CreateFile(void *packet, int pid) {
 
     /* Cannot create inside non-directory. */
     if (parent_inode->type != INODE_DIRECTORY) return 0;
-    int target_inum = SearchDirectory(parent_inode, dirname);
-    printf("target_inum: %d\n", target_inum);
 
+    int target_inum = SearchDirectory(parent_inode, dirname);
     if (target_inum > 0) {
         // Inode is found. Truncate
         new_inode = GetInode(target_inum);
@@ -490,24 +485,116 @@ int CreateFile(void *packet, int pid) {
 //     packet->arg1 = -1;
 // }
 
-// void WriteFile(DataPacket *packet, int pid) {
-//     int inum = packet->arg1;
-//     int pos = packet->arg2;
-//     int size = packet->arg3;
-//     void *buffer = packet->pointer;
-//
-//     // int result = WriteToInode(
-//     //     pid,
-//     //     inum,
-//     //     ((DataPacket *)packet)->arg2, // pos
-//     //     ((DataPacket *)packet)->arg3, // size
-//     //     ((DataPacket *)packet)->pointer // buffer
-//     // );
-//
-//     memset(packet, 0, PACKET_SIZE);
-//     packet->packet_type = MSG_WRITE_FILE;
-//     packet->arg1 = -1;
-// }
+void WriteFile(DataPacket *packet, int pid) {
+    int inum = packet->arg1;
+    int pos = packet->arg2;
+    int size = packet->arg3;
+    void *buffer = packet->pointer;
+    struct inode *inode;
+
+    printf("WriteFile - inum: %d\n", inum);
+    printf("WriteFile - pos: %d\n", pos);
+    printf("WriteFile - size: %d\n", size);
+
+    /* Bleach packet for reuse */
+    memset(packet, 0, PACKET_SIZE);
+    packet->packet_type = MSG_WRITE_FILE;
+    packet->arg1 = -1;
+
+    /* Attempting to write beyond max file size */
+    if (pos + size > MAX_FILE_SIZE) {
+        fprintf(stderr, "Trying to write beyond max file size.\n");
+        return;
+    }
+
+    /* Cannot write to non-regular file */
+    inode = GetInode(inum);
+    if (inode->type != INODE_REGULAR) {
+        fprintf(stderr, "Trying to write to non-regular file.\n");
+        return;
+    }
+
+    int i;
+    int start_index = pos / BLOCKSIZE; /* Index where writing starts */
+    int end_index = (pos + size) / BLOCKSIZE; /* Index where writing ends */
+    int block_count = GET_BLOCK_COUNT(inode->size);
+    char *block;
+    int *indirect_block = NULL;
+
+    /* ex) if pos = 0 and size = 512, it should only iterate 0 ~ 0 */
+    if ((pos + size) % BLOCKSIZE == 0) end_index--;
+
+    /* Prefetch indirect block */
+    if (inode->size >= MAX_DIRECT_SIZE) {
+        indirect_block = GetBlock(inode->indirect);
+    }
+
+    /*
+     * First, assign new blocks if current size does not support write.
+     * ex) end_index = 2 means you need 3 block_count (0, 1, 2)
+     */
+    if (block_count <= end_index) {
+        /* Assign new blocks */
+        for (i = block_count; i <= end_index; i++) {
+            /* If i is at NUM_DIRECT, it is about to create indirect */
+            if (i == NUM_DIRECT) {
+                inode->indirect = PopFromBuffer(free_block_list);
+                indirect_block = GetBlock(inode->indirect);
+            }
+
+            if (i >= NUM_DIRECT) {
+                /* Create new block in indirect block. */
+                indirect_block[i - NUM_DIRECT] = PopFromBuffer(free_block_list);
+            } else {
+                /* Create new block at direct */
+                inode->direct[i] = PopFromBuffer(free_block_list);
+            }
+
+            inode->size += BLOCKSIZE;
+        }
+    }
+
+    /* Start writing in the block */
+    int block_id;
+    int copied_size = 0;
+    int prefix = 0;
+    int copysize;
+
+    printf("start_index: %d\n", start_index);
+    printf("end_index: %d\n", end_index);
+
+    for (i = start_index; i <= end_index; i++) {
+        if (i >= NUM_DIRECT) {
+            block_id = indirect_block[i - NUM_DIRECT];
+        } else {
+            block_id = inode->direct[i];
+        }
+
+        block = GetBlock(block_id);
+
+        /*
+         * If current_pos is not divisible by BLOCKSIZE,
+         * write does not start from the beginning of the block.
+         */
+        prefix = (pos + copied_size) % BLOCKSIZE;
+        copysize = BLOCKSIZE - prefix;
+
+        /*
+         * When writing at the last block
+         */
+        if (i == end_index) {
+            copysize = size - copied_size;
+        }
+
+        printf("Copyfrom - prefix: %d\n", prefix);
+        printf("Copyfrom - copied_size: %d\n", copied_size);
+        printf("Copyfrom - copysize: %d\n", copysize);
+        CopyFrom(pid, block + prefix, buffer + copied_size, copysize);
+        copied_size += copysize;
+    }
+
+    packet->arg1 = copied_size;
+}
 
 // void CreateDir(void *packet, int pid) {
 //     char dirname[DIRNAMELEN];
@@ -547,10 +634,15 @@ int main(int argc, char **argv) {
     GetFreeInodeList();
     GetFreeBlockList();
 
-    struct dir_entry *block = GetBlock(7);
-    printf("block: %p\n", block);
-    printf("block[0]: %p\n", block[0]);
-    printf("block[0].inum: %d\n", block[0].inum);
+    struct inode *inode;
+    inode = GetInode(2);
+    printf("inode: %p\n", inode);
+    inode = GetInode(1);
+    printf("inode: %p\n", inode);
+    inode = GetInode(2);
+    printf("inode: %p\n", inode);
+    inode = GetInode(1);
+    printf("inode: %p\n", inode);
 
     int pid;
   	if ((pid = Fork()) < 0) {
@@ -587,7 +679,8 @@ int main(int argc, char **argv) {
                 break;
             case MSG_WRITE_FILE:
                 printf("MSG_WRITE_FILE received from pid: %d\n", pid);
-                // WriteFile(packet, pid);
+                WriteFile(packet, pid);
+                break;
             case MSG_CREATE_DIR:
                 printf("MSG_CREATE_DIR received from pid: %d\n", pid);
                 // CreateDir(packet, pid);
