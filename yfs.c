@@ -44,6 +44,7 @@ void *GetBlock(int block_num) {
     if (found) {
         return current->block;
     }
+
     /** If not found in cache, read directly from disk */
     void *block_buffer = malloc(SECTORSIZE);
     ReadSector(block_num, block_buffer);
@@ -441,6 +442,7 @@ int main(int argc, char **argv) {
     } else {
         printf("Error\n");
     }
+
     inode_stack = CreateInodeCache(header->num_inodes);
     printf("Cache Created\n");
     printf("Cache Hash Table: \n");
