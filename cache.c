@@ -5,9 +5,15 @@
 #include <comp421/yalnix.h>
 #include <string.h>
 #include "yfs.h"
+#include <assert.h>
 
-/**Function Declaration*/
-void *GetBlock(int block_num);
+int inode_count;
+int block_count;
+struct block_cache* block_stack; /* Cache for recently accessed blocks */
+struct inode_cache* inode_stack; /* Cache for recently accessed inodes */
+
+
+
 
 /*********************
  * Inode Cache Code *
@@ -17,11 +23,17 @@ void *GetBlock(int block_num);
  * @return Newly created cache
  */
 struct inode_cache *CreateInodeCache(int num_inodes) {
+    inode_count = num_inodes;
     struct inode_cache *new_cache = malloc(sizeof(struct inode_cache));
     new_cache->stack_size = 0;
     new_cache->hash_set = calloc((num_inodes/8) + 1, sizeof(struct inode_cache_entry));
-    printf("Hash Size: %d\n",(num_inodes/8) + 1);
     new_cache->hash_size = (num_inodes/8) + 1;
+    inode_stack = new_cache;
+    struct inode* dummy_inode = malloc(sizeof(struct inode));
+    int i;
+    for(i = -1; i > -1 * num_inodes; i--) {
+        AddToInodeCache(new_cache,dummy_inode,i);
+    }
     return new_cache;
 }
 
@@ -55,7 +67,7 @@ void AddToInodeCache(struct inode_cache *stack, struct inode *in, int inumber) {
         /**If the stack is full, the base is de-allocated and the pointers to it are nullified */
         int old_index = HashIndex(stack->base->inode_number);
         /** Write Back the Inode if it is dirty to avoid losing data*/
-        if(stack->base->dirty) WriteBackInode(stack->base);
+        if(stack->base->dirty && stack->base->inode_number > 0) WriteBackInode(stack->base);
         if(stack->base->prev_hash != NULL && stack->base->next_hash != NULL) {
             /**Both Neighbors aren't Null*/
             stack->base->next_hash->prev_hash = stack->base->prev_hash;
@@ -155,6 +167,24 @@ void PrintInodeCacheHashSet(struct inode_cache* stack) {
 }
 
 /**
+ * Searches for and returns the inode based on the number given
+ * @param inode_num The inode being requested
+ * @return A pointer to where the inode is
+ */
+struct inode *GetInode(int inode_num) {
+    /** Inode number must be in valid range*/
+    assert(inode_num >= 1 && inode_num <= inode_count);
+    /** First Check the Inode Cache */
+    struct inode* current = LookUpInode(inode_stack,inode_num);
+    if(current  != NULL) return current;
+    /**If it's not in the Inode Cache, check the Block */
+    void* inode_block = GetBlock((inode_num / 8) + 1);
+    /**Add inode to cache, when accessed*/
+    AddToInodeCache(inode_stack, (struct inode *)inode_block + (inode_num % 8), inode_num);
+    return (struct inode *)inode_block + (inode_num % 8);
+}
+
+/**
  * Prints out the numbers of the inodes currently in Cache
  * @param stack Stack to print out
  */
@@ -173,10 +203,12 @@ void PrintInodeCacheStack(struct inode_cache* stack) {
  * Creates new LIFO Cache for blocks
  */
 struct block_cache *CreateBlockCache(int num_blocks) {
+    block_count = num_blocks;
     struct block_cache *new_cache = malloc(sizeof(struct block_cache));
     new_cache->stack_size = 0;
     new_cache->hash_set = calloc((num_blocks/8) + 1, sizeof(struct block_cache_entry));
     new_cache->hash_size = (num_blocks/8) + 1;
+    block_stack = new_cache;
     return new_cache;
 }
 
@@ -293,6 +325,36 @@ void PrintBlockCacheHashSet(struct block_cache* stack) {
 }
 
 /**
+ * Returns a block, either by searching the cache or reading its sector
+ * @param block_num The number of the block being requested
+ * @return Pointer to the data that the block encapsulates
+ */
+void *GetBlock(int block_num) {
+    /**Must be a valid block number */
+    assert(block_num >= 1 && block_num <= block_count);
+
+    /** First Check Block Cache*/
+    int found = 0;
+    struct block_cache_entry *current = block_stack->top;
+    while (current != NULL && !found) {
+        found = (current->block_number == block_num);
+        if(found) break;
+        current = current->next_lru;
+    }
+
+    if (found) {
+        return current->block;
+    }
+
+    /** If not found in cache, read directly from disk */
+    void *block_buffer = malloc(SECTORSIZE);
+    ReadSector(block_num, block_buffer);
+    AddToBlockCache(block_stack, block_buffer, block_num);
+    return block_buffer;
+}
+
+
+/**
  * Prints out the Block Cache as a stack
  */
  void PrintBlockCacheStack(struct block_cache* stack) {
@@ -304,5 +366,5 @@ void PrintBlockCacheHashSet(struct block_cache* stack) {
  }
 
 int HashIndex(int key_value) {
-     return key_value/8;
+     return key_value > 0 ? key_value/8 : key_value/(-8) ;
  }

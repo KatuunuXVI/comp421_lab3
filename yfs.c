@@ -28,53 +28,6 @@ struct inode_cache* inode_stack; /* Cache for recently accessed inodes */
 struct buffer* free_inode_list; /* List of Inodes available to assign to files */
 struct buffer* free_block_list; /* List of blocks ready to allocate for file data */
 
-/**
- * Returns a block, either by searching the cache or reading its sector
- * @param block_num The number of the block being requested
- * @return Pointer to the data that the block encapsulates
- */
-void *GetBlock(int block_num) {
-    /**Must be a valid block number */
-    assert(block_num >= 1 && block_num <= header->num_blocks);
-
-    /** First Check Block Cache*/
-    int found = 0;
-    struct block_cache_entry *current = block_stack->top;
-    while (current != NULL && !found) {
-        found = (current->block_number == block_num);
-        if(found) break;
-        current = current->next_lru;
-    }
-
-    if (found) {
-        return current->block;
-    }
-
-    /** If not found in cache, read directly from disk */
-    void *block_buffer = malloc(SECTORSIZE);
-    ReadSector(block_num, block_buffer);
-    AddToBlockCache(block_stack, block_buffer, block_num);
-    return block_buffer;
-}
-
-/**
- * Searches for and returns the inode based on the number given
- * @param inode_num The inode being requested
- * @return A pointer to where the inode is
- */
-struct inode *GetInode(int inode_num) {
-    /** Inode number must be in valid range*/
-    assert(inode_num >= 1 && inode_num <= header->num_inodes);
-    /** First Check the Inode Cache */
-    struct inode* current = LookUpInode(inode_stack,inode_num);
-    if(current  != NULL) return current;
-    /**If it's not in the Inode Cache, check the Block */
-    void* inode_block = GetBlock((inode_num / 8) + 1);
-    /**Add inode to cache, when accessed*/
-    AddToInodeCache(inode_stack, (struct inode *)inode_block + (inode_num % 8), inode_num);
-    return (struct inode *)inode_block + (inode_num % 8);
-}
-
 /*
  * Print Everything inside Inode for Debugging purpose
  */

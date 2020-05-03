@@ -53,6 +53,8 @@ void PrintInodeCacheHashSet(struct inode_cache* stack);
 
 void PrintInodeCacheStack(struct inode_cache* stack);
 
+struct inode *GetInode(int inode_num);
+
 struct block_cache *CreateBlockCache(int num_blocks);
 
 void AddToBlockCache(struct block_cache *stack, void* block, int block_number);
@@ -62,6 +64,8 @@ void* LookUpBlock(struct block_cache *stack, int block_number);
 void RaiseBlockCachePosition(struct block_cache *stack, struct block_cache_entry* recent_access);
 
 void WriteBackBlock(struct block_cache_entry* out);
+
+void *GetBlock(int block_num);
 
 void PrintBlockCacheHashSet(struct block_cache* stack);
 
