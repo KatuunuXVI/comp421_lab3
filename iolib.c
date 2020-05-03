@@ -318,6 +318,14 @@ int Unlink(char *pathname) {
     return 0;
 }
 
+int SymLink(char *oldname, char *newname) {
+    return -1;
+}
+
+int ReadLink(char *pathname, char *buf, int len) {
+    return -1;
+}
+
 /**
  * Makes new directory at 'pathname'
  */

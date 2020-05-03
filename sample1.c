@@ -33,5 +33,6 @@ main()
 	Close(fd);
 
 	Shutdown();
-	return 0;
+
+    return (0);
 }

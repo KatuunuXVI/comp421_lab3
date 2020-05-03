@@ -28,6 +28,11 @@ struct inode_cache* inode_stack; /* Cache for recently accessed inodes */
 struct buffer* free_inode_list; /* List of Inodes available to assign to files */
 struct buffer* free_block_list; /* List of blocks ready to allocate for file data */
 
+/*
+ * Simple helper for getting block count from inode size.
+ *
+ */
+
 /**
  * Returns a block, either by searching the cache or reading its sector
  * @param block_num The number of the block being requested
@@ -204,7 +209,7 @@ void GetFreeBlockList() {
         if (pos < scan->size) {
             SearchAndSwap(buffer, header->num_blocks, scan->indirect, busy_blocks);
             busy_blocks++;
-            int *indirect_blocks = (int *)GetBlock(scan->indirect);
+            int *indirect_blocks = GetBlock(scan->indirect);
             j = 0;
             while (j < 128 && pos < scan->size) {
                 SearchAndSwap(buffer, header->num_blocks, indirect_blocks[j], busy_blocks);
@@ -236,12 +241,10 @@ void GetFreeBlockList() {
  * Register that to inum's inode and update size.
  */
 struct inode* CreateDirectory(struct inode* parent_inode, int parent_inum, int new_inum, char *dirname, short type) {
-    printf("parent_inum: %d\n", parent_inum);
-    printf("new_inum: %d\n", new_inum);
-    printf("dirname: %s\n", dirname);
-
-    printf("Printing parent inode before creating new file\n");
-    PrintInode(parent_inode);
+    printf("CreateDirectory - parent_inum: %d\n", parent_inum);
+    printf("CreateDirectory - new_inum: %d\n", new_inum);
+    printf("CreateDirectory - dirname: %s\n", dirname);
+    printf("CreateDirectory - type: %d\n", type);
 
     if (parent_inode->type != INODE_DIRECTORY) return NULL;
     if (parent_inode->size >= MAX_FILE_SIZE) {
@@ -284,7 +287,7 @@ struct inode* CreateDirectory(struct inode* parent_inode, int parent_inum, int n
         if (parent_inode->size == MAX_DIRECT_SIZE) {
             parent_inode->indirect = PopFromBuffer(free_block_list);
         }
-        indirect_block = (int *)GetBlock(parent_inode->indirect);
+        indirect_block = GetBlock(parent_inode->indirect);
         outer_index = (parent_inode->size - MAX_DIRECT_SIZE) / BLOCKSIZE;
         inner_index = GET_DIR_COUNT(parent_inode->size) % DIR_PER_BLOCK;
 
@@ -320,7 +323,7 @@ struct inode* CreateDirectory(struct inode* parent_inode, int parent_inum, int n
     parent_inode->size += DIRSIZE;
     parent_inode->nlink += 1;
 
-    printf("Printing parent inode before creating new file\n");
+    printf("Inode after new file is created.\n");
     PrintInode(parent_inode);
     return inode;
 }
@@ -331,6 +334,7 @@ struct inode* CreateDirectory(struct inode* parent_inode, int parent_inum, int n
  */
 int SearchDirectory(struct inode *inode, char *dirname) {
     if (inode->type != INODE_DIRECTORY) return 0;
+    printf("SearchDirectory - inode->size: %d\n", inode->size);
     struct dir_entry *block;
     int dir_index = 0;
     int prev_index = -1;
@@ -338,12 +342,13 @@ int SearchDirectory(struct inode *inode, char *dirname) {
     int inner_index;
 
     for (; dir_index < GET_DIR_COUNT(inode->size); dir_index++) {
-        outer_index = inode->size / BLOCKSIZE;
+        outer_index = dir_index / DIR_PER_BLOCK;
         inner_index = dir_index % DIR_PER_BLOCK;
 
         /* Get block if outer_index is incremented */
         if (prev_index < outer_index) {
             block = GetBlock(inode->direct[outer_index]);
+            prev_index = outer_index;
         }
 
         if (CompareDirname(block[inner_index].name, dirname) == 0) {
@@ -383,7 +388,6 @@ int GetFile(void *packet, int pid) {
     printf("GetFile - inum: %d\n", inum);
     printf("GetFile - dirname: %s\n", dirname);
     parent_inode = GetInode(inum);
-    PrintInode(parent_inode);
 
     /* Bleach packet for reuse */
     memset(packet, 0, PACKET_SIZE);
@@ -405,10 +409,9 @@ int GetFile(void *packet, int pid) {
     return 0;
 }
 
-int CreateFile(void *packet, int pid) {
+int CreateFile(void *packet, int pid, short type) {
     struct inode *parent_inode;
     struct inode *new_inode;
-
     char dirname[DIRNAMELEN];
     int parent_inum = ((DataPacket *)packet)->arg1;
     void *target = ((DataPacket *)packet)->pointer;
@@ -436,7 +439,7 @@ int CreateFile(void *packet, int pid) {
     } else {
         // Create new file if not found
         target_inum = PopFromBuffer(free_inode_list);
-        new_inode = CreateDirectory(parent_inode, parent_inum, target_inum, dirname, INODE_REGULAR);
+        new_inode = CreateDirectory(parent_inode, parent_inum, target_inum, dirname, type);
     }
 
     ((FilePacket *)packet)->inum = target_inum;
@@ -664,16 +667,6 @@ void WriteFile(DataPacket *packet, int pid) {
     packet->arg1 = copied_size;
 }
 
-// void CreateDir(void *packet, int pid) {
-//     char dirname[DIRNAMELEN];
-//     int inum = ((DataPacket *)packet)->arg1;
-//     void *target = ((DataPacket *)packet)->pointer;
-//
-//     memset(packet, 0, PACKET_SIZE);
-//     ((FilePacket *)packet)->packet_type = MSG_CREATE_DIR;
-//     ((FilePacket *)packet)->inum = 0;
-// }
-//
 // void DeleteDir(DataPacket *packet, int pid) {
 //     int inum = packet->arg1;
 //
@@ -801,7 +794,7 @@ int main(int argc, char **argv) {
                 break;
             case MSG_CREATE_FILE:
                 printf("MSG_CREATE_FILE received from pid: %d\n", pid);
-                CreateFile(packet, pid);
+                CreateFile(packet, pid, INODE_REGULAR);
                 break;
             case MSG_READ_FILE:
                 printf("MSG_READ_FILE received from pid: %d\n", pid);
@@ -813,7 +806,7 @@ int main(int argc, char **argv) {
                 break;
             case MSG_CREATE_DIR:
                 printf("MSG_CREATE_DIR received from pid: %d\n", pid);
-                // CreateDir(packet, pid);
+                CreateFile(packet, pid, INODE_DIRECTORY);
                 break;
             case MSG_DELETE_DIR:
                 printf("MSG_DELETE_DIR received from pid: %d\n", pid);
