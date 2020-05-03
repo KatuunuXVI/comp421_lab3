@@ -189,6 +189,7 @@ void GetFreeBlockList() {
  * Register that to inum's inode and update size.
  */
 struct inode* CreateDirectory(struct inode* parent_inode, int parent_inum, int new_inum, char *dirname, short type) {
+    struct inode_cache_entry *nice;
     printf("parent_inum: %d\n", parent_inum);
     printf("new_inum: %d\n", new_inum);
     printf("dirname: %s\n", dirname);
@@ -203,7 +204,8 @@ struct inode* CreateDirectory(struct inode* parent_inode, int parent_inum, int n
     }
 
     /* Verify against number of new blocks required */
-    struct inode *inode = GetInode(new_inum)->in;
+    nice = GetInode(new_inum);
+    struct inode *inode = nice->in;
     struct dir_entry *block;
 
     if (inode->type != INODE_FREE) {
@@ -227,7 +229,7 @@ struct inode* CreateDirectory(struct inode* parent_inode, int parent_inum, int n
         SetDirectoryName(block[0].name, ".", 0, 1);
         SetDirectoryName(block[1].name, "..", 0, 2);
     }
-
+    nice->dirty = 1;
     /* Direct is full. Use indirect. */
     int *indirect_block;
     int outer_index;
@@ -267,12 +269,11 @@ struct inode* CreateDirectory(struct inode* parent_inode, int parent_inum, int n
         block = GetBlock(parent_inode->direct[outer_index])->block;
     }
 
-
     block[inner_index].inum = new_inum;
     SetDirectoryName(block[inner_index].name, dirname, 0, DIRNAMELEN);
     parent_inode->size += DIRSIZE;
     parent_inode->nlink += 1;
-
+    GetInode(parent_inum)->dirty = 1;
     printf("Printing parent inode before creating new file\n");
     PrintInode(parent_inode);
     return inode;
@@ -315,6 +316,7 @@ void TruncateInode(struct inode *inode) {
 
     inode->size = 0;
     inode->nlink = 0;
+
 }
 
 /*
@@ -363,11 +365,13 @@ int GetFile(void *packet, int pid) {
     ((FilePacket *)packet)->type = target_inode->type;
     ((FilePacket *)packet)->size = target_inode->size;
     ((FilePacket *)packet)->nlink = target_inode->nlink;
+
     return 0;
 }
 
 int CreateFile(void *packet, int pid) {
     struct inode *parent_inode;
+    struct inode_cache_entry *nice;
     struct inode *new_inode;
 
     char dirname[DIRNAMELEN];
@@ -392,8 +396,10 @@ int CreateFile(void *packet, int pid) {
     int target_inum = SearchDirectory(parent_inode, dirname);
     if (target_inum > 0) {
         // Inode is found. Truncate
-        new_inode = GetInode(target_inum)->in;
+        nice = GetInode(target_inum);
+        new_inode = nice->in;
         TruncateInode(new_inode);
+        nice->dirty = 1;
     } else {
         // Create new file if not found
         target_inum = PopFromBuffer(free_inode_list);
@@ -431,6 +437,7 @@ void WriteFile(DataPacket *packet, int pid) {
     int pos = packet->arg2;
     int size = packet->arg3;
     void *buffer = packet->pointer;
+    struct inode_cache_entry *ice;
     struct inode *inode;
 
     printf("WriteFile - inum: %d\n", inum);
@@ -449,7 +456,8 @@ void WriteFile(DataPacket *packet, int pid) {
     }
 
     /* Cannot write to non-regular file */
-    inode = GetInode(inum)->in;
+    ice = GetInode(inum);
+    inode = ice->in;
     if (inode->type != INODE_REGULAR) {
         fprintf(stderr, "Trying to write to non-regular file.\n");
         return;
@@ -533,7 +541,7 @@ void WriteFile(DataPacket *packet, int pid) {
         CopyFrom(pid, block + prefix, buffer + copied_size, copysize);
         copied_size += copysize;
     }
-
+    ice->dirty = 1;
     packet->arg1 = copied_size;
 }
 
@@ -667,8 +675,8 @@ int main(int argc, char **argv) {
     // PrintInodeCacheHashSet(inode_stack);
     // printf("Cache Stack\n");
     // PrintInodeCacheStack(inode_stack);
-    // TestInodeCache();
-    // TestBlockCache();
+    TestInodeCache();
+    TestBlockCache();
 
     struct inode *inode;
     inode = GetInode(2)->in;

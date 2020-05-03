@@ -31,7 +31,7 @@ struct inode_cache *CreateInodeCache(int num_inodes) {
     inode_stack = new_cache;
     struct inode* dummy_inode = malloc(sizeof(struct inode));
     int i;
-    for(i = -1; i > -1 * num_inodes; i--) {
+    for(i = -1; i >= -1 * INODE_CACHESIZE; i--) {
         AddToInodeCache(new_cache,dummy_inode,i);
     }
     return new_cache;
@@ -41,54 +41,66 @@ struct inode_cache *CreateInodeCache(int num_inodes) {
  * Adds a new inode to the top of the cache entry
  */
 void AddToInodeCache(struct inode_cache *stack, struct inode *in, int inumber) {
-    /** Create a Cache Entry for the Inode*/
-    struct inode_cache_entry* item = malloc(sizeof(struct inode_cache_entry));
-    item->inode_number = inumber;
-    item->in = in;
-    int index = HashIndex(inumber);
-    if(stack->hash_set[index] != NULL) stack->hash_set[index]->prev_hash = item;
-    item->next_hash = stack->hash_set[index];
-    item->prev_hash = NULL;
-    item->prev_lru = NULL;
-    stack->hash_set[index] = item;
-    /** Place entry into the LRU Stack*/
-    if (!stack->stack_size) {
-        /** If the stack is empty the entry becomes both the top and base*/
-        stack->base = item;
-        stack->top = item;
-    } else {
-        /** If the stack isn't empty the entry is added to the top*/
-        item->next_lru = stack->top;
-        stack->top->prev_lru = item;
-        stack->top = item;
-
-    }
     if (stack->stack_size == INODE_CACHESIZE) {
         /**If the stack is full, the base is de-allocated and the pointers to it are nullified */
-        int old_index = HashIndex(stack->base->inode_number);
+        struct inode_cache_entry *entry = stack->base;
+        int old_index = HashIndex(entry->inode_number);
+        int new_index = HashIndex(inumber);
+
+        /**Reassign Base*/
+        stack->base = stack->base->prev_lru;
+        stack->base->next_lru = NULL;
+
         /** Write Back the Inode if it is dirty to avoid losing data*/
-        if(stack->base->dirty && stack->base->inode_number > 0) WriteBackInode(stack->base);
-        if(stack->base->prev_hash != NULL && stack->base->next_hash != NULL) {
+        if(entry->dirty && entry->inode_number > 0) WriteBackInode(entry);
+        if(entry->prev_hash != NULL && entry->next_hash != NULL) {
             /**Both Neighbors aren't Null*/
-            stack->base->next_hash->prev_hash = stack->base->prev_hash;
-            stack->base->prev_hash->next_hash = stack->base->next_hash;
-        } else if(stack->base->prev_hash == NULL && stack->base->next_hash != NULL) {
+            entry->next_hash->prev_hash = entry->prev_hash;
+            entry->prev_hash->next_hash = entry->next_hash;
+        } else if(entry->prev_hash == NULL && entry->next_hash != NULL) {
             /**Tail End of Hash Table Array*/
-            stack->hash_set[old_index] = stack->base->next_hash;
-            stack->base->next_hash->prev_hash = NULL;
-        } else if(stack->base->prev_hash != NULL && stack->base->next_hash == NULL) {
+            stack->hash_set[old_index] = entry->next_hash;
+            entry->next_hash->prev_hash = NULL;
+        } else if(entry->prev_hash != NULL && entry->next_hash == NULL) {
             /**Head of Hash Table Array*/
-            stack->base->prev_hash->next_hash = NULL;
+            entry->prev_hash->next_hash = NULL;
         }
         else {
             /**No Neighbors in Hash Table Array*/
             stack->hash_set[old_index] = NULL;
         }
-        /**Reassign Base*/
-        stack->base = stack->base->prev_lru;
-        free(stack->base->next_lru);
-        stack->base->next_lru = NULL;
+        entry->in = in;
+        entry->dirty = 0;
+        entry->inode_number = inumber;
+        entry->prev_lru = NULL;
+        entry->next_lru = stack->top;
+        stack->top->prev_lru = entry;
+        stack->top = entry;
+        entry->prev_hash = NULL;
+        if(stack->hash_set[new_index] != NULL) stack->hash_set[new_index]->prev_hash = entry;
+        entry->next_hash = stack->hash_set[new_index];
     } else {
+        /** Create a Cache Entry for the Inode*/
+        struct inode_cache_entry* item = malloc(sizeof(struct inode_cache_entry));
+        item->inode_number = inumber;
+        item->in = in;
+        int index = HashIndex(inumber);
+        if(stack->hash_set[index] != NULL) stack->hash_set[index]->prev_hash = item;
+        item->next_hash = stack->hash_set[index];
+        item->prev_hash = NULL;
+        item->prev_lru = NULL;
+        stack->hash_set[index] = item;
+        /** Place entry into the LRU Stack*/
+        if (!stack->stack_size) {
+            /** If the stack is empty the entry becomes both the top and base*/
+            stack->base = item;
+            stack->top = item;
+        } else {
+            /** If the stack isn't empty the entry is added to the top*/
+            item->next_lru = stack->top;
+            stack->top->prev_lru = item;
+            stack->top = item;
+        }
         /**If the stack isn't full increase the size*/
         stack->stack_size++;
     }
@@ -216,50 +228,67 @@ struct block_cache *CreateBlockCache(int num_blocks) {
  * Adds a new inode to the top of the cache entry
  */
 void AddToBlockCache(struct block_cache *stack, void* block, int block_number) {
-    /**Create a Cache Entry for the Block*/
-    struct block_cache_entry* item = malloc(sizeof(struct block_cache_entry));
-    item->block_number = block_number;
-    item->block = block;
-    int index = HashIndex(block_number);
-    /** If the stack is empty the entry becomes both the top and base*/
-    if(stack->hash_set[index] != NULL) stack->hash_set[index]->prev_hash = item;
-    item->next_hash = stack->hash_set[index];
-    item->prev_hash = NULL;
-    item->prev_lru = NULL;
-    stack->hash_set[index] = item;
-    if (!stack->stack_size) {
-        stack->base = item;
-        stack->top = item;
-    } else {
-        /** If the stack isn't empty the entry is added to the top*/
-        item->next_lru = stack->top;
-        stack->top->prev_lru = item;
-        stack->top = item;
-    }
-    /**If the cache is at max size, the last used block is removed. */
     if (stack->stack_size == BLOCK_CACHESIZE) {
-        int old_index = HashIndex(stack->base->block_number);
-        if(stack->base->dirty && stack->base->block_number > 0) WriteSector(stack->base->block_number,stack->base->block);
-        if(stack->base->prev_hash != NULL && stack->base->next_hash != NULL) {
+        /**If the stack is full, the base is de-allocated and the pointers to it are nullified */
+        struct block_cache_entry *entry = stack->base;
+        int old_index = HashIndex(entry->block_number);
+        int new_index = HashIndex(block_number);
+
+        /**Reassign Base*/
+        stack->base = stack->base->prev_lru;
+        stack->base->next_lru = NULL;
+
+        /** Write Back the Block if it is dirty to avoid losing data*/
+        if(entry->dirty && entry->block_number > 0) WriteSector(stack->base->block_number,stack->base->block);
+        if(entry->prev_hash != NULL && entry->next_hash != NULL) {
             /**Both Neighbors aren't Null*/
-            stack->base->next_hash->prev_hash = stack->base->prev_hash;
-            stack->base->prev_hash->next_hash = stack->base->next_hash;
-        } else if(stack->base->prev_hash == NULL && stack->base->next_hash != NULL) {
+            entry->next_hash->prev_hash = entry->prev_hash;
+            entry->prev_hash->next_hash = entry->next_hash;
+        } else if(entry->prev_hash == NULL && entry->next_hash != NULL) {
             /**Tail End of Hash Table Array*/
-            stack->hash_set[old_index] = stack->base->next_hash;
-            stack->base->next_hash->prev_hash = NULL;
-        } else if(stack->base->prev_hash != NULL && stack->base->next_hash == NULL) {
+            stack->hash_set[old_index] = entry->next_hash;
+            entry->next_hash->prev_hash = NULL;
+        } else if(entry->prev_hash != NULL && entry->next_hash == NULL) {
             /**Head of Hash Table Array*/
-            stack->base->prev_hash->next_hash = NULL;
+            entry->prev_hash->next_hash = NULL;
         }
         else {
             /**No Neighbors in Hash Table Array*/
             stack->hash_set[old_index] = NULL;
         }
-        stack->base = stack->base->prev_lru;
-        free(stack->base->next_lru);
-        stack->base->next_lru = NULL;
-    } else { /**If the stack isn't full increase the size*/
+        entry->block = block;
+        entry->dirty = 0;
+        entry->block_number = block_number;
+        entry->prev_lru = NULL;
+        entry->next_lru = stack->top;
+        stack->top->prev_lru = entry;
+        stack->top = entry;
+        entry->prev_hash = NULL;
+        if(stack->hash_set[new_index] != NULL) stack->hash_set[new_index]->prev_hash = entry;
+        entry->next_hash = stack->hash_set[new_index];
+    } else {
+        /** Create a Cache Entry for the Inode*/
+        struct block_cache_entry* item = malloc(sizeof(struct inode_cache_entry));
+        item->block_number = block_number;
+        item->block = block;
+        int index = HashIndex(block_number);
+        if(stack->hash_set[index] != NULL) stack->hash_set[index]->prev_hash = item;
+        item->next_hash = stack->hash_set[index];
+        item->prev_hash = NULL;
+        item->prev_lru = NULL;
+        stack->hash_set[index] = item;
+        /** Place entry into the LRU Stack*/
+        if (!stack->stack_size) {
+            /** If the stack is empty the entry becomes both the top and base*/
+            stack->base = item;
+            stack->top = item;
+        } else {
+            /** If the stack isn't empty the entry is added to the top*/
+            item->next_lru = stack->top;
+            stack->top->prev_lru = item;
+            stack->top = item;
+        }
+        /**If the stack isn't full increase the size*/
         stack->stack_size++;
     }
 }
