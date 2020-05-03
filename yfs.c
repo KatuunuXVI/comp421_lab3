@@ -625,6 +625,7 @@ void SyncCache() {
     for(block = block_stack->top; block != NULL; block = block->next_lru) {
         if(block->dirty) {
             WriteSector(block->block_number,block->block);
+            block->dirty = 0;
         }
     }
     return;

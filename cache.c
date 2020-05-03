@@ -3,6 +3,12 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <comp421/yalnix.h>
+#include <string.h>
+#include "yfs.h"
+
+/**Function Declaration*/
+void *GetBlock(int block_num);
+
 /*********************
  * Inode Cache Code *
  ********************/
@@ -100,9 +106,10 @@ struct inode* LookUpInode(struct inode_cache *stack, int inumber) {
  * @param out Inode that was pushed out of the cache
  */
 void WriteBackInode(struct inode_cache_entry* out) {
-    void* inode_block = GetBlock((inode->inode_number / 8) + 1);
-    struct inode* overwrite = (struct inode *)inode_block + (inode->inode_number % 8);
-    memcpy(overwrite,inode->in, sizeof(inode));
+    void* inode_block = GetBlock((out->inode_number / 8) + 1);
+    struct inode* overwrite = (struct inode *)inode_block + (out->inode_number % 8);
+    memcpy(overwrite,out->in, sizeof(struct inode));
+    out->dirty = 0;
 }
 
 /**
