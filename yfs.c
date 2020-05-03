@@ -592,64 +592,6 @@ void SyncCache() {
     return;
 }
 
-void TestInodeCache() {
-    int i;
-    int inode_number;
-    struct inode* inode;
-    for(i = 1; i <= 64; i++) {
-        inode_number = (rand()%header->num_inodes)+1;
-        printf("Call %d: Calling Inode %d\n",i,inode_number);
-        inode = GetInode(inode_number)->in;
-        printf("Inode Type: %d\n",inode->type);
-        printf("Cache Hash Table: \n");
-        PrintInodeCacheHashSet(inode_stack);
-        printf("Cache Stack\n");
-        PrintInodeCacheStack(inode_stack);
-        printf("Cache Size: %d\n",inode_stack->stack_size);
-    }
-    int j;
-    for(i = 1; i <= header->num_inodes; i++) {
-        printf("Calling Inode %d\n",i);
-        for(j = 0; j < 64; j++) {
-            GetInode(i);
-        }
-        printf("%d Calls to Inode %d Successful\n",j,i);
-        printf("Cache Hash Table: \n");
-        PrintInodeCacheHashSet(inode_stack);
-        printf("Cache Stack\n");
-        PrintInodeCacheStack(inode_stack);
-    }
-
-}
-
-void TestBlockCache() {
-    int i;
-    int block_number;
-    for(i = 1; i <= 64; i++) {
-        block_number = (rand()%header->num_blocks)+1;
-        printf("Call %d: Calling Block %d\n",i,block_number);
-        GetBlock(block_number);
-        printf("Cache Hash Table: \n");
-        PrintBlockCacheHashSet(block_stack);
-        printf("Cache Stack\n");
-        PrintBlockCacheStack(block_stack);
-        printf("Cache Size: %d\n",block_stack->stack_size);
-    }
-    int j;
-    for(i = 1; i <= header->num_blocks; i++) {
-        printf("Calling Block %d\n",i);
-        for(j = 0; j < 64; j++) {
-            GetBlock(i);
-        }
-        printf("%d Calls to Inode %d Successful\n",j,i);
-        printf("Cache Hash Table: \n");
-        PrintBlockCacheHashSet(block_stack);
-        printf("Cache Stack\n");
-        PrintBlockCacheStack(block_stack);
-    }
-
-}
-
 int main(int argc, char **argv) {
     Register(FILE_SERVER);
     (void)argc;
@@ -675,8 +617,8 @@ int main(int argc, char **argv) {
     // PrintInodeCacheHashSet(inode_stack);
     // printf("Cache Stack\n");
     // PrintInodeCacheStack(inode_stack);
-    TestInodeCache();
-    TestBlockCache();
+    TestInodeCache(header->num_inodes);
+    TestBlockCache(header->num_blocks);
 
     struct inode *inode;
     inode = GetInode(2)->in;

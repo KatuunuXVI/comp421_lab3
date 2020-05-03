@@ -72,4 +72,9 @@ void PrintBlockCacheHashSet(struct block_cache* stack);
 void PrintBlockCacheStack(struct block_cache* stack);
 
 int HashIndex(int key_value);
+
+void TestInodeCache(int num_inodes);
+
+void TestBlockCache(int num_blocks);
+
 #endif //COMP421_LAB3_CACHE_H
