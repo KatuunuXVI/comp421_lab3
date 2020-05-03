@@ -100,13 +100,13 @@ void AddToInodeCache(struct inode_cache *stack, struct inode *in, int inumber) {
  * @param inumber Number of the inode being looked up
  * @return The requested inode
  */
-struct inode* LookUpInode(struct inode_cache *stack, int inumber) {
+struct inode_cache_entry* LookUpInode(struct inode_cache *stack, int inumber) {
     struct inode_cache_entry* ice;
     /**For loop iterating into the hash array index the inode number points to*/
     for(ice = stack->hash_set[HashIndex(inumber)]; ice != NULL; ice = ice->next_hash) {
         if(ice->inode_number == inumber) {
             RaiseInodeCachePosition(stack,ice);
-            return ice->in;
+            return ice;
         }
     }
     /**Returns null if Inode is not found*/
@@ -171,17 +171,17 @@ void PrintInodeCacheHashSet(struct inode_cache* stack) {
  * @param inode_num The inode being requested
  * @return A pointer to where the inode is
  */
-struct inode *GetInode(int inode_num) {
+struct inode_cache_entry* GetInode(int inode_num) {
     /** Inode number must be in valid range*/
     assert(inode_num >= 1 && inode_num <= inode_count);
     /** First Check the Inode Cache */
-    struct inode* current = LookUpInode(inode_stack,inode_num);
+    struct inode_cache_entry* current = LookUpInode(inode_stack,inode_num);
     if(current  != NULL) return current;
     /**If it's not in the Inode Cache, check the Block */
-    void* inode_block = GetBlock((inode_num / 8) + 1);
+    void* inode_block = GetBlock((inode_num / 8) + 1)->block;
     /**Add inode to cache, when accessed*/
     AddToInodeCache(inode_stack, (struct inode *)inode_block + (inode_num % 8), inode_num);
-    return (struct inode *)inode_block + (inode_num % 8);
+    return inode_stack->top;
 }
 
 /**
@@ -239,7 +239,7 @@ void AddToBlockCache(struct block_cache *stack, void* block, int block_number) {
     /**If the cache is at max size, the last used block is removed. */
     if (stack->stack_size == BLOCK_CACHESIZE) {
         int old_index = HashIndex(stack->base->block_number);
-        if(stack->base->dirty) WriteSector(stack->base->block_number,stack->base->block);
+        if(stack->base->dirty && stack->base->block_number > 0) WriteSector(stack->base->block_number,stack->base->block);
         if(stack->base->prev_hash != NULL && stack->base->next_hash != NULL) {
             /**Both Neighbors aren't Null*/
             stack->base->next_hash->prev_hash = stack->base->prev_hash;
@@ -270,13 +270,13 @@ void AddToBlockCache(struct block_cache *stack, void* block, int block_number) {
  * @param block_number Number of the block to search for
  * @return The requested Block or a pointer to Null
  */
-void* LookUpBlock(struct block_cache *stack, int block_number) {
+struct block_cache_entry* LookUpBlock(struct block_cache *stack, int block_number) {
     struct block_cache_entry* block;
     /**For loop iterating into the hash array index the inode number points to*/
     for(block = stack->hash_set[HashIndex(block_number)]; block != NULL; block = block->next_hash) {
         if(block->block_number == block_number) {
             RaiseBlockCachePosition(stack,block);
-            return block->block;
+            return block;
         }
     }
     /**Returns null if Inode is not found*/
@@ -329,7 +329,7 @@ void PrintBlockCacheHashSet(struct block_cache* stack) {
  * @param block_num The number of the block being requested
  * @return Pointer to the data that the block encapsulates
  */
-void *GetBlock(int block_num) {
+struct block_cache_entry* GetBlock(int block_num) {
     /**Must be a valid block number */
     assert(block_num >= 1 && block_num <= block_count);
 
@@ -343,14 +343,14 @@ void *GetBlock(int block_num) {
     }
 
     if (found) {
-        return current->block;
+        return current;
     }
 
     /** If not found in cache, read directly from disk */
     void *block_buffer = malloc(SECTORSIZE);
     ReadSector(block_num, block_buffer);
     AddToBlockCache(block_stack, block_buffer, block_num);
-    return block_buffer;
+    return block_stack->top;
 }
 
 

@@ -58,7 +58,7 @@ void PrintInode(struct inode *inode) {
     for (i = 0; i < block_count; i++) {
         printf("inode->direct[%d]: %d\n", i, inode->direct[i]);
         if (inode->type == INODE_DIRECTORY) {
-            block = GetBlock(inode->direct[i]);
+            block = GetBlock(inode->direct[i])->block;
             if ((i + 1) * BLOCKSIZE > inode->size) {
                 inner_count = dir_count % DIR_PER_BLOCK;
             } else {
@@ -107,7 +107,7 @@ void GetFreeInodeList() {
     free_inode_list = GetBuffer(header->num_inodes);
     int i;
     for (i = 1; i <= header->num_inodes; i ++) {
-        struct inode *next = GetInode(i);
+        struct inode *next = GetInode(i)->in;
         if (next->type == INODE_FREE) PushToBuffer(free_inode_list, i);
     }
 }
@@ -139,7 +139,7 @@ void GetFreeBlockList() {
     int busy_blocks = 0;
     struct inode *scan;
     for (i = 1; i <= header->num_inodes; i ++) {
-        scan = GetInode(i);
+        scan = GetInode(i)->in;
 
         /* Iterate through direct array to find first blocks */
         j = 0;
@@ -203,7 +203,7 @@ struct inode* CreateDirectory(struct inode* parent_inode, int parent_inum, int n
     }
 
     /* Verify against number of new blocks required */
-    struct inode *inode = GetInode(new_inum);
+    struct inode *inode = GetInode(new_inum)->in;
     struct dir_entry *block;
 
     if (inode->type != INODE_FREE) {
@@ -221,7 +221,7 @@ struct inode* CreateDirectory(struct inode* parent_inode, int parent_inum, int n
         inode->nlink = 2;
         inode->size = sizeof(struct dir_entry) * 2;
         inode->direct[0] = PopFromBuffer(free_block_list);
-        block = GetBlock(inode->direct[0]);
+        block = GetBlock(inode->direct[0])->block;
         block[0].inum = new_inum;
         block[1].inum = parent_inum;
         SetDirectoryName(block[0].name, ".", 0, 1);
@@ -249,7 +249,7 @@ struct inode* CreateDirectory(struct inode* parent_inode, int parent_inum, int n
             indirect_block[outer_index] = PopFromBuffer(free_block_list);
         }
 
-        block = GetBlock(indirect_block[outer_index]);
+        block = GetBlock(indirect_block[outer_index])->block;
     } else {
         outer_index = parent_inode->size / BLOCKSIZE;
         inner_index = GET_DIR_COUNT(parent_inode->size) % DIR_PER_BLOCK;
@@ -264,7 +264,7 @@ struct inode* CreateDirectory(struct inode* parent_inode, int parent_inum, int n
         }
 
         printf("parent_inode->direct[outer_index]: %d\n", parent_inode->direct[outer_index]);
-        block = GetBlock(parent_inode->direct[outer_index]);
+        block = GetBlock(parent_inode->direct[outer_index])->block;
     }
 
 
@@ -296,7 +296,7 @@ int SearchDirectory(struct inode *inode, char *dirname) {
 
         /* Get block if outer_index is incremented */
         if (prev_index < outer_index) {
-            block = GetBlock(inode->direct[outer_index]);
+            block = GetBlock(inode->direct[outer_index])->block;
         }
 
         if (CompareDirname(block[inner_index].name, dirname) == 0) {
@@ -343,7 +343,7 @@ int GetFile(void *packet, int pid) {
 
     printf("GetFile - inum: %d\n", inum);
     printf("GetFile - dirname: %s\n", dirname);
-    parent_inode = GetInode(inum);
+    parent_inode = GetInode(inum)->in;
     PrintInode(parent_inode);
 
     /* Bleach packet for reuse */
@@ -358,7 +358,7 @@ int GetFile(void *packet, int pid) {
     if (target_inum == 0) return 0;
     printf("target_inum: %d\n", target_inum);
 
-    target_inode = GetInode(target_inum);
+    target_inode = GetInode(target_inum)->in;
     ((FilePacket *)packet)->inum = target_inum;
     ((FilePacket *)packet)->type = target_inode->type;
     ((FilePacket *)packet)->size = target_inode->size;
@@ -379,7 +379,7 @@ int CreateFile(void *packet, int pid) {
         return -1;
     }
 
-    parent_inode = GetInode(parent_inum);
+    parent_inode = GetInode(parent_inum)->in;
 
     /* Bleach packet for reuse */
     memset(packet, 0, PACKET_SIZE);
@@ -392,7 +392,7 @@ int CreateFile(void *packet, int pid) {
     int target_inum = SearchDirectory(parent_inode, dirname);
     if (target_inum > 0) {
         // Inode is found. Truncate
-        new_inode = GetInode(target_inum);
+        new_inode = GetInode(target_inum)->in;
         TruncateInode(new_inode);
     } else {
         // Create new file if not found
@@ -449,7 +449,7 @@ void WriteFile(DataPacket *packet, int pid) {
     }
 
     /* Cannot write to non-regular file */
-    inode = GetInode(inum);
+    inode = GetInode(inum)->in;
     if (inode->type != INODE_REGULAR) {
         fprintf(stderr, "Trying to write to non-regular file.\n");
         return;
@@ -467,7 +467,7 @@ void WriteFile(DataPacket *packet, int pid) {
 
     /* Prefetch indirect block */
     if (inode->size >= MAX_DIRECT_SIZE) {
-        indirect_block = GetBlock(inode->indirect);
+        indirect_block = GetBlock(inode->indirect)->block;
     }
 
     /*
@@ -480,7 +480,7 @@ void WriteFile(DataPacket *packet, int pid) {
             /* If i is at NUM_DIRECT, it is about to create indirect */
             if (i == NUM_DIRECT) {
                 inode->indirect = PopFromBuffer(free_block_list);
-                indirect_block = GetBlock(inode->indirect);
+                indirect_block = GetBlock(inode->indirect)->block;
             }
 
             if (i >= NUM_DIRECT) {
@@ -511,7 +511,7 @@ void WriteFile(DataPacket *packet, int pid) {
             block_id = inode->direct[i];
         }
 
-        block = GetBlock(block_id);
+        block = GetBlock(block_id)->block;
 
         /*
          * If current_pos is not divisible by BLOCKSIZE,
@@ -591,7 +591,7 @@ void TestInodeCache() {
     for(i = 1; i <= 64; i++) {
         inode_number = (rand()%header->num_inodes)+1;
         printf("Call %d: Calling Inode %d\n",i,inode_number);
-        inode = GetInode(inode_number);
+        inode = GetInode(inode_number)->in;
         printf("Inode Type: %d\n",inode->type);
         printf("Cache Hash Table: \n");
         PrintInodeCacheHashSet(inode_stack);
@@ -671,13 +671,13 @@ int main(int argc, char **argv) {
     // TestBlockCache();
 
     struct inode *inode;
-    inode = GetInode(2);
+    inode = GetInode(2)->in;
     printf("inode: %p\n", inode);
-    inode = GetInode(1);
+    inode = GetInode(1)->in;
     printf("inode: %p\n", inode);
-    inode = GetInode(2);
+    inode = GetInode(2)->in;
     printf("inode: %p\n", inode);
-    inode = GetInode(1);
+    inode = GetInode(1)->in;
     printf("inode: %p\n", inode);
 
     int pid;
