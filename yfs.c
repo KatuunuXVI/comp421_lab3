@@ -86,7 +86,7 @@ void PrintInode(struct inode *inode) {
     int inner_count;
     struct dir_entry *block;
     int *indirect_block;
-
+    (void)indirect_block;
     printf("----- Printing Inode -----\n");
     printf("inode->type: %d\n", inode->type);
     printf("inode->nlink: %d\n", inode->nlink);
@@ -602,8 +602,32 @@ void WriteFile(DataPacket *packet, int pid) {
 //     packet->arg1 = -1;
 // }
 
+/**
+ * Writes all Dirty Inodes
+ */
 void SyncCache() {
+    /**
+     * Synchronize Inodes in Cache to Blocks in Cache
+     */
+    struct inode_cache_entry* inode;
+    for(inode = inode_stack->top; inode != NULL; inode = inode->next_lru) {
+        if(inode->dirty) {
+            void* inode_block = GetBlock((inode->inode_number / 8) + 1);
+            struct inode* overwrite = (struct inode *)inode_block + (inode->inode_number % 8);
+            memcpy(overwrite,inode->in, sizeof(inode));
+        }
+    }
 
+    /**
+     * Synchronize Blocks in Cache to Disk
+     */
+    struct block_cache_entry* block;
+    for(block = block_stack->top; block != NULL; block = block->next_lru) {
+        if(block->dirty) {
+            WriteSector(block->block_number,block->block);
+        }
+    }
+    return;
 }
 
 void TestInodeCache() {

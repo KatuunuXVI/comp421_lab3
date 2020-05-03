@@ -100,12 +100,9 @@ struct inode* LookUpInode(struct inode_cache *stack, int inumber) {
  * @param out Inode that was pushed out of the cache
  */
 void WriteBackInode(struct inode_cache_entry* out) {
-    void *block = malloc(SECTORSIZE);
-    ReadSector((out->inode_number / 8) + 1, block);
-    struct inode *overwrite = (struct inode *) block + (out->inode_number % 8);
-    *overwrite = *out->in;
-    WriteSector((out->inode_number / 8) + 1, block);
-    free(block);
+    void* inode_block = GetBlock((inode->inode_number / 8) + 1);
+    struct inode* overwrite = (struct inode *)inode_block + (inode->inode_number % 8);
+    memcpy(overwrite,inode->in, sizeof(inode));
 }
 
 /**
@@ -273,9 +270,6 @@ void RaiseBlockCachePosition(struct block_cache *stack, struct block_cache_entry
     }
 }
 
-void WriteBackBlock(struct block_cache_entry* out) {
-    WriteSector(out->block_number, out);
-}
 
 void PrintBlockCacheHashSet(struct block_cache* stack) {
     int index;
