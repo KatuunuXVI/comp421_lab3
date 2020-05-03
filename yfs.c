@@ -28,11 +28,6 @@ struct inode_cache* inode_stack; /* Cache for recently accessed inodes */
 struct buffer* free_inode_list; /* List of Inodes available to assign to files */
 struct buffer* free_block_list; /* List of blocks ready to allocate for file data */
 
-/*
- * Simple helper for getting block count from inode size.
- *
- */
-
 /**
  * Returns a block, either by searching the cache or reading its sector
  * @param block_num The number of the block being requested
