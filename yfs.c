@@ -604,31 +604,14 @@ int main(int argc, char **argv) {
     }
 
     inode_stack = CreateInodeCache(header->num_inodes);
-    // printf("Cache Created\n");
-    // printf("Cache Hash Table: \n");
-    // PrintInodeCacheHashSet(inode_stack);
-    // printf("Cache Stack\n");
-    // PrintInodeCacheStack(inode_stack);
     block_stack = CreateBlockCache(header->num_blocks);
     GetFreeInodeList();
     GetFreeBlockList();
-    // printf("Free Inode List Obtained\n");
-    // printf("Cache Hash Table: \n");
-    // PrintInodeCacheHashSet(inode_stack);
-    // printf("Cache Stack\n");
-    // PrintInodeCacheStack(inode_stack);
-    TestInodeCache(header->num_inodes);
-    TestBlockCache(header->num_blocks);
 
-    struct inode *inode;
-    inode = GetInode(2)->in;
-    printf("inode: %p\n", inode);
-    inode = GetInode(1)->in;
-    printf("inode: %p\n", inode);
-    inode = GetInode(2)->in;
-    printf("inode: %p\n", inode);
-    inode = GetInode(1)->in;
-    printf("inode: %p\n", inode);
+    TestInodeCache(header->num_inodes);
+    // TestBlockCache(header->num_blocks);
+
+    return;
 
     int pid;
   	if ((pid = Fork()) < 0) {

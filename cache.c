@@ -12,9 +12,6 @@ int block_count;
 struct block_cache* block_stack; /* Cache for recently accessed blocks */
 struct inode_cache* inode_stack; /* Cache for recently accessed inodes */
 
-
-
-
 /*********************
  * Inode Cache Code *
  ********************/
@@ -31,8 +28,8 @@ struct inode_cache *CreateInodeCache(int num_inodes) {
     inode_stack = new_cache;
     struct inode* dummy_inode = malloc(sizeof(struct inode));
     int i;
-    for(i = -1; i >= -1 * INODE_CACHESIZE; i--) {
-        AddToInodeCache(new_cache,dummy_inode,i);
+    for (i = -1; i >= -1 * INODE_CACHESIZE; i--) {
+        AddToInodeCache(new_cache, dummy_inode, i);
     }
     return new_cache;
 }
@@ -40,58 +37,64 @@ struct inode_cache *CreateInodeCache(int num_inodes) {
 /**
  * Adds a new inode to the top of the cache entry
  */
-void AddToInodeCache(struct inode_cache *stack, struct inode *in, int inumber) {
+void AddToInodeCache(struct inode_cache *stack, struct inode *in, int inum) {
     if (stack->stack_size == INODE_CACHESIZE) {
         /**If the stack is full, the base is de-allocated and the pointers to it are nullified */
         struct inode_cache_entry *entry = stack->base;
         int old_index = HashIndex(entry->inode_number);
-        int new_index = HashIndex(inumber);
+        int new_index = HashIndex(inum);
 
         /**Reassign Base*/
         stack->base = stack->base->prev_lru;
         stack->base->next_lru = NULL;
 
         /** Write Back the Inode if it is dirty to avoid losing data*/
-        if(entry->dirty && entry->inode_number > 0) WriteBackInode(entry);
-        if(entry->prev_hash != NULL && entry->next_hash != NULL) {
+        if (entry->dirty && entry->inode_number > 0) WriteBackInode(entry);
+        if (entry->prev_hash != NULL && entry->next_hash != NULL) {
             /**Both Neighbors aren't Null*/
             entry->next_hash->prev_hash = entry->prev_hash;
             entry->prev_hash->next_hash = entry->next_hash;
-        } else if(entry->prev_hash == NULL && entry->next_hash != NULL) {
+        } else if (entry->prev_hash == NULL && entry->next_hash != NULL) {
             /**Tail End of Hash Table Array*/
             stack->hash_set[old_index] = entry->next_hash;
             entry->next_hash->prev_hash = NULL;
-        } else if(entry->prev_hash != NULL && entry->next_hash == NULL) {
+        } else if (entry->prev_hash != NULL && entry->next_hash == NULL) {
             /**Head of Hash Table Array*/
             entry->prev_hash->next_hash = NULL;
-        }
-        else {
+        } else {
             /**No Neighbors in Hash Table Array*/
             stack->hash_set[old_index] = NULL;
         }
         entry->in = in;
         entry->dirty = 0;
-        entry->inode_number = inumber;
+        entry->inode_number = inum;
         entry->prev_lru = NULL;
         entry->next_lru = stack->top;
         stack->top->prev_lru = entry;
         stack->top = entry;
         entry->prev_hash = NULL;
-        if(stack->hash_set[new_index] != NULL) stack->hash_set[new_index]->prev_hash = entry;
+        if (stack->hash_set[new_index] != NULL) {
+            stack->hash_set[new_index]->prev_hash = entry;
+        }
         entry->next_hash = stack->hash_set[new_index];
     } else {
         /** Create a Cache Entry for the Inode*/
         struct inode_cache_entry* item = malloc(sizeof(struct inode_cache_entry));
-        item->inode_number = inumber;
+        int index = HashIndex(inum);
+        item->inode_number = inum;
         item->in = in;
-        int index = HashIndex(inumber);
-        if(stack->hash_set[index] != NULL) stack->hash_set[index]->prev_hash = item;
-        item->next_hash = stack->hash_set[index];
         item->prev_hash = NULL;
         item->prev_lru = NULL;
+
+        /** If hash already exists, enqueue item in the hash linked list */
+        if (stack->hash_set[index] != NULL) {
+            stack->hash_set[index]->prev_hash = item;
+        }
+        item->next_hash = stack->hash_set[index];
         stack->hash_set[index] = item;
+
         /** Place entry into the LRU Stack*/
-        if (!stack->stack_size) {
+        if (stack->stack_size == 0) {
             /** If the stack is empty the entry becomes both the top and base*/
             stack->base = item;
             stack->top = item;
@@ -101,6 +104,7 @@ void AddToInodeCache(struct inode_cache *stack, struct inode *in, int inumber) {
             stack->top->prev_lru = item;
             stack->top = item;
         }
+
         /**If the stack isn't full increase the size*/
         stack->stack_size++;
     }
@@ -109,15 +113,15 @@ void AddToInodeCache(struct inode_cache *stack, struct inode *in, int inumber) {
 /**
  * Searches up an inode within a cache
  * @param stack Cache to look for the inode in
- * @param inumber Number of the inode being looked up
+ * @param inum Number of the inode being looked up
  * @return The requested inode
  */
-struct inode_cache_entry* LookUpInode(struct inode_cache *stack, int inumber) {
+struct inode_cache_entry* LookUpInode(struct inode_cache *stack, int inum) {
     struct inode_cache_entry* ice;
     /**For loop iterating into the hash array index the inode number points to*/
-    for(ice = stack->hash_set[HashIndex(inumber)]; ice != NULL; ice = ice->next_hash) {
-        if(ice->inode_number == inumber) {
-            RaiseInodeCachePosition(stack,ice);
+    for (ice = stack->hash_set[HashIndex(inum)]; ice != NULL; ice = ice->next_hash) {
+        if (ice->inode_number == inum) {
+            RaiseInodeCachePosition(stack, ice);
             return ice;
         }
     }
@@ -143,8 +147,8 @@ void WriteBackInode(struct inode_cache_entry* out) {
  * @param recent_access Entry to move
  */
 void RaiseInodeCachePosition(struct inode_cache* stack, struct inode_cache_entry* recent_access) {
-    if((recent_access->inode_number == stack->top->inode_number) || (recent_access->prev_lru == NULL && recent_access->next_lru == NULL)) return;
-    if(recent_access->inode_number == stack->base->inode_number) {
+    if ((recent_access->inode_number == stack->top->inode_number) || (recent_access->prev_lru == NULL && recent_access->next_lru == NULL)) return;
+    if (recent_access->inode_number == stack->base->inode_number) {
         /**Reassign Base*/
         recent_access->prev_lru->next_lru = NULL;
         stack->base = recent_access->prev_lru;
@@ -165,41 +169,40 @@ void RaiseInodeCachePosition(struct inode_cache* stack, struct inode_cache_entry
     }
 }
 
+/**
+ * Searches for and returns the inode based on the number given
+ * @param inode_num The inode being requested
+ * @return A pointer to where the inode is
+ */
+struct inode_cache_entry* GetInode(int inum) {
+    /** Inode number must be in valid range*/
+    assert(inum >= 1 && inum <= inode_count);
+
+    /** First Check the Inode Cache */
+    struct inode_cache_entry* current = LookUpInode(inode_stack, inum);
+    if (current != NULL) return current;
+
+    /** If it's not in the Inode Cache, check the Block */
+    void* inode_block = GetBlock((inum / 8) + 1)->block;
+
+    /** Add inode to cache, when accessed*/
+    AddToInodeCache(inode_stack, (struct inode *)inode_block + (inum % 8), inum);
+    return inode_stack->top;
+}
+
 void PrintInodeCacheHashSet(struct inode_cache* stack) {
     int index;
     struct inode_cache_entry* entry;
 
-    for(index = 0; index < stack->hash_size; index++) {
+    for (index = 0; index < stack->hash_size; index++) {
         printf("[");
-        for(entry = stack->hash_set[index]; entry != NULL; entry = entry->next_hash) {
+        for (entry = stack->hash_set[index]; entry != NULL; entry = entry->next_hash) {
             printf(" %d ",entry->inode_number);
         }
         printf("]\n");
     }
 }
 
-/**
- * Searches for and returns the inode based on the number given
- * @param inode_num The inode being requested
- * @return A pointer to where the inode is
- */
-struct inode_cache_entry* GetInode(int inode_num) {
-    /** Inode number must be in valid range*/
-    assert(inode_num >= 1 && inode_num <= inode_count);
-    /** First Check the Inode Cache */
-    struct inode_cache_entry* current = LookUpInode(inode_stack,inode_num);
-    if(current  != NULL) return current;
-    /**If it's not in the Inode Cache, check the Block */
-    void* inode_block = GetBlock((inode_num / 8) + 1)->block;
-    /**Add inode to cache, when accessed*/
-    AddToInodeCache(inode_stack, (struct inode *)inode_block + (inode_num % 8), inode_num);
-    return inode_stack->top;
-}
-
-/**
- * Prints out the numbers of the inodes currently in Cache
- * @param stack Stack to print out
- */
 void PrintInodeCacheStack(struct inode_cache* stack) {
     struct inode_cache_entry* position = stack->top;
     while (position != NULL) {
@@ -239,8 +242,8 @@ void AddToBlockCache(struct block_cache *stack, void* block, int block_number) {
         stack->base->next_lru = NULL;
 
         /** Write Back the Block if it is dirty to avoid losing data*/
-        if(entry->dirty && entry->block_number > 0) WriteSector(stack->base->block_number,stack->base->block);
-        if(entry->prev_hash != NULL && entry->next_hash != NULL) {
+        if (entry->dirty && entry->block_number > 0) WriteSector(stack->base->block_number,stack->base->block);
+        if (entry->prev_hash != NULL && entry->next_hash != NULL) {
             /**Both Neighbors aren't Null*/
             entry->next_hash->prev_hash = entry->prev_hash;
             entry->prev_hash->next_hash = entry->next_hash;
@@ -251,8 +254,7 @@ void AddToBlockCache(struct block_cache *stack, void* block, int block_number) {
         } else if(entry->prev_hash != NULL && entry->next_hash == NULL) {
             /**Head of Hash Table Array*/
             entry->prev_hash->next_hash = NULL;
-        }
-        else {
+        } else {
             /**No Neighbors in Hash Table Array*/
             stack->hash_set[old_index] = NULL;
         }
@@ -302,8 +304,8 @@ void AddToBlockCache(struct block_cache *stack, void* block, int block_number) {
 struct block_cache_entry* LookUpBlock(struct block_cache *stack, int block_number) {
     struct block_cache_entry* block;
     /**For loop iterating into the hash array index the inode number points to*/
-    for(block = stack->hash_set[HashIndex(block_number)]; block != NULL; block = block->next_hash) {
-        if(block->block_number == block_number) {
+    for (block = stack->hash_set[HashIndex(block_number)]; block != NULL; block = block->next_hash) {
+        if (block->block_number == block_number) {
             RaiseBlockCachePosition(stack,block);
             return block;
         }
@@ -316,8 +318,8 @@ struct block_cache_entry* LookUpBlock(struct block_cache *stack, int block_numbe
  * Repositions block at top of stack whenever used
  */
 void RaiseBlockCachePosition(struct block_cache *stack, struct block_cache_entry* recent_access) {
-    if((recent_access->block_number == stack->top->block_number) || (recent_access->prev_lru == NULL && recent_access->next_lru == NULL)) return;
-    if(recent_access->block_number == stack->base->block_number) {
+    if ((recent_access->block_number == stack->top->block_number) || (recent_access->prev_lru == NULL && recent_access->next_lru == NULL)) return;
+    if (recent_access->block_number == stack->base->block_number) {
         /**Reassign Base*/
         recent_access->prev_lru->next_lru = NULL;
         stack->base = recent_access->prev_lru;
@@ -343,10 +345,10 @@ void PrintBlockCacheHashSet(struct block_cache* stack) {
     int index;
     struct block_cache_entry* entry;
 
-    for(index = 0; index < stack->hash_size; index++) {
-        if(stack->hash_set[index] == NULL) continue;
+    for (index = 0; index < stack->hash_size; index++) {
+        if (stack->hash_set[index] == NULL) continue;
         printf("[");
-        for(entry = stack->hash_set[index]; entry != NULL; entry = entry->next_hash) {
+        for (entry = stack->hash_set[index]; entry != NULL; entry = entry->next_hash) {
             printf(" %d ",entry->block_number);
         }
         printf("]\n");
@@ -367,7 +369,7 @@ struct block_cache_entry* GetBlock(int block_num) {
     struct block_cache_entry *current = block_stack->top;
     while (current != NULL && !found) {
         found = (current->block_number == block_num);
-        if(found) break;
+        if (found) break;
         current = current->next_lru;
     }
 

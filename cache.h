@@ -26,7 +26,6 @@ struct inode_cache {
     struct inode_cache_entry** hash_set;
     int stack_size; //Number of entries in the cache stack
     int hash_size; //Number of hash collisions
-
 };
 
 struct inode_cache_entry {
@@ -39,6 +38,10 @@ struct inode_cache_entry {
     int dirty; //Whether or not this
 };
 
+/*********************
+ * Inode Cache Code *
+ ********************/
+
 struct inode_cache *CreateInodeCache();
 
 void AddToInodeCache(struct inode_cache *stack, struct inode *in, int inumber);
@@ -49,11 +52,15 @@ void RaiseInodeCachePosition(struct inode_cache* stack, struct inode_cache_entry
 
 void WriteBackInode(struct inode_cache_entry* out);
 
+struct inode_cache_entry* GetInode(int inode_num);
+
 void PrintInodeCacheHashSet(struct inode_cache* stack);
 
 void PrintInodeCacheStack(struct inode_cache* stack);
 
-struct inode_cache_entry* GetInode(int inode_num);
+/*********************
+ * Block Cache Code *
+ ********************/
 
 struct block_cache *CreateBlockCache(int num_blocks);
 
