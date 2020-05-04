@@ -1,11 +1,11 @@
 #include <comp421/yalnix.h>
 #include <comp421/iolib.h>
+#include <stdio.h>
 
 int
 main()
 {
 	int fd;
-
 	fd = Create("a");
 	Write(fd, "aaaaaaaaaaaaaaaa", 16);
 	Close(fd);
@@ -27,11 +27,13 @@ main()
 	fd = Create("/dir/y");
 	Write(fd, "yyyyyyyyyyyyyyyy", 16);
 	Close(fd);
-
+    Sync();
 	fd = Create("/dir/z");
 	Write(fd, "zzzzzzzzzzzzzzzz", 16);
 	Close(fd);
+    printf("Shutting Down\n");
+	Sync();
 
-	Shutdown();
+	//Shutdown();
 	return 0;
 }
