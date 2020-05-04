@@ -28,7 +28,7 @@
 
 #define MSG_UNLINK 8
 
-// Send: UnknownPacket
+// Send: DataPacket
 // Receive DataPacket
 #define MSG_SYNC 9
 

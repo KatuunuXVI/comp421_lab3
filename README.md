@@ -15,9 +15,9 @@
 
 ## Test Cases
 
-- [ ] sample1.c
+- [x] sample1.c
   - Create, Write, Close 6 files
-- [ ] sample2.c
+- [x] sample2.c
   - Create and Close 32 empty files
 - [ ] tcreate.c
   - Create, Sync, Delay
@@ -35,6 +35,12 @@
   - Unlink 4 files
 - [ ] writeread.c
   - Create, Write, Close, Sync, Open, Read, and Close
+
+## Additional Test Cases
+
+- [ ] Test reuse
+- [ ] Test creating block holes
+- [ ] Test indirect block
 
 ## Notes
 

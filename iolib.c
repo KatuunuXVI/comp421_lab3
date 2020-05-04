@@ -241,7 +241,7 @@ int Read(int fd_id, void *buf, int size) {
     fd->pos += result;
 
     TracePrintf(10, "\t└─ [Read size: %d]\n\n", result);
-    return fd->pos;
+    return result;
 }
 
 /**
@@ -316,6 +316,14 @@ int Unlink(char *pathname) {
 
     printf("Pathname: %s\n", pathname);
     return 0;
+}
+
+int SymLink(char *oldname, char *newname) {
+    return -1;
+}
+
+int ReadLink(char *pathname, char *buf, int len) {
+    return -1;
 }
 
 /**
@@ -478,23 +486,24 @@ int Stat(char *pathname, struct Stat *statbuf) {
  */
 int Sync() {
     /* Create new file or truncate existing file */
-    int success;
     void *packet = malloc(PACKET_SIZE);
-    ((UnknownPacket *)packet)->packet_type = MSG_SYNC;
+    ((DataPacket *)packet)->packet_type = MSG_SYNC;
+    ((DataPacket *)packet)->arg1 = 0; /* Don't shut down */
     Send(packet, -FILE_SERVER);
-    success = ((DataPacket *)packet)->arg1;
-
-    if (success < 0) {
-        fprintf(stderr, "Sync error\n");
-        return -1;
-    }
-
+    free(packet);
     return 0;
 }
 
 /**
  * Syncs cache and closes the library
  */
-int Shutdown(void) {
+int Shutdown() {
+    /* Create new file or truncate existing file */
+    int success;
+    void *packet = malloc(PACKET_SIZE);
+    ((DataPacket *)packet)->packet_type = MSG_SYNC;
+    ((DataPacket *)packet)->arg1 = 1; /* Shut down */
+    Send(packet, -FILE_SERVER);
+    free(packet);
     return 0;
 }

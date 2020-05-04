@@ -34,6 +34,6 @@ main()
     printf("Shutting Down\n");
 	Sync();
 
-	//Shutdown();
-	return 0;
+	Shutdown();
+    return (0);
 }

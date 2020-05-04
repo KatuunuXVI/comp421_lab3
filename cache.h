@@ -29,8 +29,8 @@ struct inode_cache {
 };
 
 struct inode_cache_entry {
-    struct inode* in; //Item that this entry represents. Can either be a block or inode
-    int inode_number; //Inode/Block number of the cache entry.
+    struct inode* inode; //Item that this entry represents. Can either be a block or inode
+    int inum; //Inode/Block number of the cache entry.
     struct inode_cache_entry* prev_lru; //Previous Inode in Stack
     struct inode_cache_entry* next_lru; //Next Inode in Stack
     struct inode_cache_entry* prev_hash;

@@ -37,11 +37,11 @@ struct inode_cache *CreateInodeCache(int num_inodes) {
 /**
  * Adds a new inode to the top of the cache entry
  */
-void AddToInodeCache(struct inode_cache *stack, struct inode *in, int inum) {
+void AddToInodeCache(struct inode_cache *stack, struct inode *inode, int inum) {
     if (stack->stack_size == INODE_CACHESIZE) {
         /**If the stack is full, the base is de-allocated and the pointers to it are nullified */
         struct inode_cache_entry *entry = stack->base;
-        int old_index = HashIndex(entry->inode_number);
+        int old_index = HashIndex(entry->inum);
         int new_index = HashIndex(inum);
 
         /**Reassign Base*/
@@ -49,7 +49,7 @@ void AddToInodeCache(struct inode_cache *stack, struct inode *in, int inum) {
         stack->base->next_lru = NULL;
 
         /** Write Back the Inode if it is dirty to avoid losing data*/
-        if (entry->dirty && entry->inode_number > 0) WriteBackInode(entry);
+        if (entry->dirty && entry->inum > 0) WriteBackInode(entry);
         if (entry->prev_hash != NULL && entry->next_hash != NULL) {
             /**Both Neighbors aren't Null*/
             entry->next_hash->prev_hash = entry->prev_hash;
@@ -65,9 +65,9 @@ void AddToInodeCache(struct inode_cache *stack, struct inode *in, int inum) {
             /**No Neighbors in Hash Table Array*/
             stack->hash_set[old_index] = NULL;
         }
-        entry->in = in;
+        entry->inode = inode;
         entry->dirty = 0;
-        entry->inode_number = inum;
+        entry->inum = inum;
         entry->prev_lru = NULL;
         entry->next_lru = stack->top;
         stack->top->prev_lru = entry;
@@ -81,8 +81,8 @@ void AddToInodeCache(struct inode_cache *stack, struct inode *in, int inum) {
         /** Create a Cache Entry for the Inode*/
         struct inode_cache_entry* item = malloc(sizeof(struct inode_cache_entry));
         int index = HashIndex(inum);
-        item->inode_number = inum;
-        item->in = in;
+        item->inum = inum;
+        item->inode = inode;
         item->prev_hash = NULL;
         item->prev_lru = NULL;
 
@@ -120,7 +120,7 @@ struct inode_cache_entry* LookUpInode(struct inode_cache *stack, int inum) {
     struct inode_cache_entry* ice;
     /**For loop iterating into the hash array index the inode number points to*/
     for (ice = stack->hash_set[HashIndex(inum)]; ice != NULL; ice = ice->next_hash) {
-        if (ice->inode_number == inum) {
+        if (ice->inum == inum) {
             RaiseInodeCachePosition(stack, ice);
             return ice;
         }
@@ -134,9 +134,9 @@ struct inode_cache_entry* LookUpInode(struct inode_cache *stack, int inum) {
  * @param out Inode that was pushed out of the cache
  */
 void WriteBackInode(struct inode_cache_entry* out) {
-    void* inode_block = GetBlock((out->inode_number / 8) + 1);
-    struct inode* overwrite = (struct inode *)inode_block + (out->inode_number % 8);
-    memcpy(overwrite,out->in, sizeof(struct inode));
+    void* inode_block = GetBlock((out->inum / 8) + 1);
+    struct inode* overwrite = (struct inode *)inode_block + (out->inum % 8);
+    memcpy(overwrite, out->inode, sizeof(struct inode));
     out->dirty = 0;
 }
 
@@ -147,8 +147,8 @@ void WriteBackInode(struct inode_cache_entry* out) {
  * @param recent_access Entry to move
  */
 void RaiseInodeCachePosition(struct inode_cache* stack, struct inode_cache_entry* recent_access) {
-    if ((recent_access->inode_number == stack->top->inode_number) || (recent_access->prev_lru == NULL && recent_access->next_lru == NULL)) return;
-    if (recent_access->inode_number == stack->base->inode_number) {
+    if ((recent_access->inum == stack->top->inum) || (recent_access->prev_lru == NULL && recent_access->next_lru == NULL)) return;
+    if (recent_access->inum == stack->base->inum) {
         /**Reassign Base*/
         recent_access->prev_lru->next_lru = NULL;
         stack->base = recent_access->prev_lru;
@@ -197,7 +197,7 @@ void PrintInodeCacheHashSet(struct inode_cache* stack) {
     for (index = 0; index < stack->hash_size; index++) {
         printf("[");
         for (entry = stack->hash_set[index]; entry != NULL; entry = entry->next_hash) {
-            printf(" %d ",entry->inode_number);
+            printf(" %d ",entry->inum);
         }
         printf("]\n");
     }
@@ -206,7 +206,7 @@ void PrintInodeCacheHashSet(struct inode_cache* stack) {
 void PrintInodeCacheStack(struct inode_cache* stack) {
     struct inode_cache_entry* position = stack->top;
     while (position != NULL) {
-        printf("| %d |\n", position->inode_number);
+        printf("| %d |\n", position->inum);
         position = position->next_lru;
     }
 }
@@ -407,7 +407,7 @@ void TestInodeCache(int num_inodes) {
     for(i = 1; i <= 64; i++) {
         inode_number = (rand() % num_inodes)+1;
         printf("Call %d: Calling Inode %d\n",i,inode_number);
-        inode = GetInode(inode_number)->in;
+        inode = GetInode(inode_number)->inode;
         printf("Inode Type: %d\n",inode->type);
         printf("Cache Hash Table: \n");
         PrintInodeCacheHashSet(inode_stack);
