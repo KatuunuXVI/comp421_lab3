@@ -2,6 +2,7 @@ typedef struct FileDescriptor {
     int id; /* FD id */
     int used; /* Only valid if used = 1 */
     int inum; /* Inode number */
+    int reuse; /* Same inode with different reuse means file is changed */
     int pos; /* Current position */
 } FileDescriptor;
 
