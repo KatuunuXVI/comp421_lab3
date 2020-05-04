@@ -44,7 +44,7 @@
 - [ ] Test creating block holes
 - [ ] Test seek
 - [ ] Test indirect block
-  > > > > > > > master
+- [ ] Test RmDir
 
 ## Notes
 

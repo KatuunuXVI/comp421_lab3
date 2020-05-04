@@ -485,6 +485,20 @@ int RmDir(char *pathname) {
     struct Stat *stat = malloc(sizeof(struct Stat));
     int result = IterateFilePath(pathname, parent_inum, stat, filename, NULL);
 
+    if (filename[0] == '.' && filename[1] == '\0') {
+        fprintf(stderr, "Cannot RmDir .\n");
+        free(parent_inum);
+        free(stat);
+        return -1;
+    }
+
+    if (filename[0] == '.' && filename[1] == '.' && filename[2] == '\0') {
+        fprintf(stderr, "Cannot RmDir ..\n");
+        free(parent_inum);
+        free(stat);
+        return -1;
+    }
+
     /* Target is not found */
     if (result < 0) {
         fprintf(stderr, "Path not found\n");
@@ -494,19 +508,20 @@ int RmDir(char *pathname) {
     }
 
     /* Delete directory */
-    int success;
     DataPacket *packet = malloc(PACKET_SIZE);
     packet->packet_type = MSG_DELETE_DIR;
     packet->arg1 = stat->inum;
     Send(packet, -FILE_SERVER);
-    success = packet->arg1;
+    result = packet->arg1;
 
     free(packet);
     free(parent_inum);
     free(stat);
 
-    if (success < 0) {
-        fprintf(stderr, "Directory delection error\n");
+    if (result < 0) {
+        if (result == -1) fprintf(stderr, "Cannot delete root directory.\n");
+        else if (result == -2) fprintf(stderr, "Cannot call RmDir on regular file.\n");
+        else if (result == -3) fprintf(stderr, "There are other directories left in this directory.\n");
         return -1;
     }
 
