@@ -40,6 +40,7 @@
 
 - [ ] Test reuse
 - [ ] Test creating block holes
+- [ ] Test indirect block
 
 ## Notes
 
