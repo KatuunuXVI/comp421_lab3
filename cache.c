@@ -373,9 +373,8 @@ struct block_cache_entry* GetBlock(int block_num) {
     assert(block_num >= 1 && block_num <= block_count);
 
     /** First Check Block Cache*/
-    int found = 0;
     struct block_cache_entry *current = LookUpBlock(block_stack,block_num);
-    printf("GetBlock: %d found: %d\n", block_num, found);
+    printf("GetBlock: %d found: %d\n", block_num, current != NULL);
     if (current != NULL) return current;
 
 
