@@ -159,6 +159,8 @@ int Create(char *pathname) {
         if (new_inum == 0) fprintf(stderr, "[Error] File creation error\n");
         else if (new_inum == -1) fprintf(stderr, "[Error] Cannot create file in non-directory.\n");
         else if (new_inum == -2) fprintf(stderr, "[Error] Directory has reached max size limit.\n");
+        else if (new_inum == -3) fprintf(stderr, "[Error] Not enough inode left.\n");
+        else if (new_inum == -4) fprintf(stderr, "[Error] Not enough block left.\n");
 
         free(packet);
         free(parent_inum);

@@ -637,6 +637,16 @@ void CreateFile(void *packet, int pid, short type) {
     if (target_inum > 0) {
         new_inode = TruncateFileInode(target_inum);
     } else {
+        if (free_inode_list->size == 0) {
+            ((FilePacket *)packet)->inum = -3;
+            return;
+        }
+
+        if (type == INODE_DIRECTORY && free_block_list->size == 0) {
+            ((FilePacket *)packet)->inum = -4;
+            return;
+        }
+
         // Create new file if not found
         target_inum = PopFromBuffer(free_inode_list);
         new_inode = CreateFileInode(target_inum, parent_inum, type);
