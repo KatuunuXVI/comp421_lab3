@@ -77,6 +77,7 @@ void AddToInodeCache(struct inode_cache *stack, struct inode *inode, int inum) {
             stack->hash_set[new_index]->prev_hash = entry;
         }
         entry->next_hash = stack->hash_set[new_index];
+        stack->hash_set[new_index] = entry;
     } else {
         /** Create a Cache Entry for the Inode*/
         struct inode_cache_entry* item = malloc(sizeof(struct inode_cache_entry));
@@ -134,6 +135,7 @@ struct inode_cache_entry* LookUpInode(struct inode_cache *stack, int inum) {
  * @param out Inode that was pushed out of the cache
  */
 void WriteBackInode(struct inode_cache_entry* out) {
+    printf("Inode %d evicted, syncing\n",out->inum);
     void* inode_block = GetBlock((out->inum / 8) + 1);
     struct inode* overwrite = (struct inode *)inode_block + (out->inum % 8);
     memcpy(overwrite, out->inode, sizeof(struct inode));
@@ -268,6 +270,7 @@ void AddToBlockCache(struct block_cache *stack, void* block, int block_number) {
         entry->prev_hash = NULL;
         if(stack->hash_set[new_index] != NULL) stack->hash_set[new_index]->prev_hash = entry;
         entry->next_hash = stack->hash_set[new_index];
+        stack->hash_set[new_index] = entry;
     } else {
         /** Create a Cache Entry for the Inode*/
         struct block_cache_entry* item = malloc(sizeof(struct inode_cache_entry));
