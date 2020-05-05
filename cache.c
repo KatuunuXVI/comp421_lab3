@@ -374,20 +374,12 @@ struct block_cache_entry* GetBlock(int block_num) {
 
     /** First Check Block Cache*/
     int found = 0;
-    struct block_cache_entry *current = block_stack->top;
-    while (current != NULL && !found) {
-        found = (current->block_number == block_num);
-        if (found) break;
-        current = current->next_lru;
-    }
-
+    struct block_cache_entry *current = LookUpBlock(block_stack,block_num);
     printf("GetBlock: %d found: %d\n", block_num, found);
+    if (current != NULL) return current;
 
-    if (found) {
-        return current;
-    }
 
-    /** If not found in cache, read directly from disk */
+   /** If not found in cache, read directly from disk */
     void *block_buffer = malloc(SECTORSIZE);
     ReadSector(block_num, block_buffer);
     AddToBlockCache(block_stack, block_buffer, block_num);
