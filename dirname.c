@@ -17,13 +17,12 @@
  int CompareDirname(char *dirname, char *other) {
      int i;
      for (i = 0; i < DIRNAMELEN; i++) {
-         /* If dirname is null string, break */
-         if (dirname[i] == '\0') break;
-
          /* If characters do not match, it is not equal */
          if (dirname[i] != other[i]) return -1;
+
+         /* If dirname is null string, break */
+         if (dirname[i] == '\0') break;
      }
 
      return 0;
  }
- 

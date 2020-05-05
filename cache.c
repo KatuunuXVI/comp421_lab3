@@ -246,7 +246,10 @@ void AddToBlockCache(struct block_cache *stack, void* block, int block_number) {
         stack->base->next_lru = NULL;
 
         /** Write Back the Block if it is dirty to avoid losing data*/
-        if (entry->dirty && entry->block_number > 0) WriteSector(stack->base->block_number,stack->base->block);
+        if (entry->dirty && entry->block_number > 0) {
+            printf("Writing block to sector: %d\n", stack->base->block_number);
+            WriteSector(stack->base->block_number, stack->base->block);
+        }
         if (entry->prev_hash != NULL && entry->next_hash != NULL) {
             /**Both Neighbors aren't Null*/
             entry->next_hash->prev_hash = entry->prev_hash;
@@ -377,6 +380,8 @@ struct block_cache_entry* GetBlock(int block_num) {
         if (found) break;
         current = current->next_lru;
     }
+
+    printf("GetBlock: %d found: %d\n", block_num, found);
 
     if (found) {
         return current;
