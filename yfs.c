@@ -1030,9 +1030,14 @@ void SyncCache() {
      * Synchronize Inodes in Cache to Blocks in Cache
      */
     struct inode_cache_entry* inode;
+    //PrintInodeCacheHashSet(inode_stack);
+    //PrintInodeCacheStack(inode_stack);
     for (inode = inode_stack->top; inode != NULL; inode = inode->next_lru) {
         if (inode->dirty) {
-            void* inode_block = GetBlock((inode->inum / 8) + 1);
+            struct block_cache_entry* inode_block_entry = GetBlock((inode->inum / 8) + 1);
+            printf("Syncing Inode %d to block %d\n",inode->inum,inode_block_entry->block_number);
+            void* inode_block = inode_block_entry->block;
+            inode_block_entry->dirty = 1;
             struct inode* overwrite = (struct inode *)inode_block + (inode->inum % 8);
             memcpy(overwrite, inode->inode, sizeof(inode));
             inode->dirty = 0;
@@ -1045,6 +1050,7 @@ void SyncCache() {
     struct block_cache_entry* block;
     for (block = block_stack->top; block != NULL; block = block->next_lru) {
         if (block->dirty) {
+            printf("Syncing Block %d\n",block->block_number);
             WriteSector(block->block_number,block->block);
             block->dirty = 0;
         }
