@@ -760,6 +760,7 @@ void SyncCache() {
             void* inode_block = GetBlock((inode->inum / 8) + 1);
             struct inode* overwrite = (struct inode *)inode_block + (inode->inum % 8);
             memcpy(overwrite, inode->inode, sizeof(inode));
+            inode->dirty = 0;
         }
     }
 
