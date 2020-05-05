@@ -389,11 +389,85 @@ int Seek(int fd_id, int offset, int whence) {
  * Creates hard link from 'newname' to 'oldname'
  */
 int Link(char *oldname, char *newname) {
+    TracePrintf(10, "\t┌─ [Link]\n");
+
     /* Verify pathname */
-    if (AssertPathname(oldname) < 0) return -1;
+    if (AssertPathname(oldname) < 0) {
+        fprintf(stderr, "Invalid old pathname\n");
+        return -1;
+    }
+
+    if (AssertPathname(newname) < 0) {
+        fprintf(stderr, "Invalid new pathname\n");
+        return -1;
+    }
 
     printf("Old Name: %s\n", oldname);
     printf("New Name: %s\n", newname);
+
+    /* Iterate over both components */
+    char new_filename[DIRNAMELEN];
+    int *old_parent_inum = malloc(sizeof(int));
+    int *new_parent_inum = malloc(sizeof(int));
+    struct Stat *old_stat = malloc(sizeof(struct Stat));
+    int result1 = IterateFilePath(oldname, old_parent_inum, old_stat, NULL, NULL);
+    int result2 = IterateFilePath(newname, new_parent_inum, NULL, NULL, NULL);
+
+    /* Oldname was not found */
+    if (result1 < 0) {
+        fprintf(stderr, "Path %s not found\n", oldname);
+        free(old_parent_inum);
+        free(new_parent_inum);
+        free(old_stat);
+        return -1;
+    }
+
+    /* Oldname cannot be directory */
+    if (old_stat->type != INODE_REGULAR) {
+        fprintf(stderr, "You can only create hard link on regular file.\n");
+        free(old_parent_inum);
+        free(new_parent_inum);
+        free(old_stat);
+        return -1;
+    }
+
+    /* Newname path was not found */
+    if (result2 == -2) {
+        fprintf(stderr, "Path %s not found.\n", newname);
+        free(old_parent_inum);
+        free(new_parent_inum);
+        free(old_stat);
+        return -1;
+    }
+
+    /* Newname file already exists */
+    if (result2 == 0) {
+        fprintf(stderr, "File %s already exists.\n", newname);
+        free(old_parent_inum);
+        free(new_parent_inum);
+        free(old_stat);
+        return -1;
+    }
+
+    DataPacket *packet = malloc(PACKET_SIZE);
+    packet->packet_type = MSG_LINK;
+    packet->arg1 = old_stat->inum;
+    packet->arg2 = *new_parent_inum;
+    packet->pointer = (void *)new_filename;
+    Send(packet, -FILE_SERVER);
+    int result = packet->arg1;
+
+    free(old_parent_inum);
+    free(new_parent_inum);
+    free(old_stat);
+    free(packet);
+
+    if (result < 0) {
+        fprintf(stderr, "Link error.\n");
+        return -1;
+    }
+
+    TracePrintf(10, "\t└─ [Link]\n\n");
     return 0;
 }
 
@@ -401,10 +475,48 @@ int Link(char *oldname, char *newname) {
  * Removes directory entry for 'pathname'
  */
 int Unlink(char *pathname) {
+    TracePrintf(10, "\t┌─ [Unlink] pathname: %s\n", pathname);
+
     /* Verify pathname */
     if (AssertPathname(pathname) < 0) return -1;
 
-    printf("Pathname: %s\n", pathname);
+    int *parent_inum = malloc(sizeof(int));
+    struct Stat *stat = malloc(sizeof(struct Stat));
+    int result = IterateFilePath(pathname, parent_inum, stat, NULL, NULL);
+
+    /* Path was not found */
+    if (result < 0) {
+        fprintf(stderr, "Path not found\n");
+        free(parent_inum);
+        free(stat);
+        return -1;
+    }
+
+    /* Target found but it is directory */
+    if (stat->type == INODE_DIRECTORY) {
+        fprintf(stderr, "Cannot unlink directory\n");
+        free(parent_inum);
+        free(stat);
+        return -1;
+    }
+
+    DataPacket *packet = malloc(PACKET_SIZE);
+    packet->packet_type = MSG_UNLINK;
+    packet->arg1 = stat->inum;
+    packet->arg2 = *parent_inum;
+    Send(packet, -FILE_SERVER);
+    result = packet->arg1;
+
+    free(parent_inum);
+    free(stat);
+    free(packet);
+
+    if (result < 0) {
+        fprintf(stderr, "Unlink error.\n");
+        return -1;
+    }
+
+    TracePrintf(10, "\t└─ [Unlink]\n\n");
     return 0;
 }
 
