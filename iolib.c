@@ -41,7 +41,7 @@ int IterateFilePath(char *pathname, int *parent_inum, struct Stat *stat, char *f
     PathIterator *it = ParsePath(pathname);
 
     /* Inode from iteration */
-    int next_inum = ROOTINODE;
+    int next_inum = current_inum;
     char *data;
 
     /* By default, parent_inum is current_inum */
@@ -55,7 +55,7 @@ int IterateFilePath(char *pathname, int *parent_inum, struct Stat *stat, char *f
             next_inum = ROOTINODE;
             *parent_inum = ROOTINODE;
         } else {
-            ((DataPacket *)packet)->arg1 = *parent_inum;
+            ((DataPacket *)packet)->arg1 = next_inum;
             ((DataPacket *)packet)->pointer = (void *)data;
             Send(packet, -FILE_SERVER);
             *parent_inum = next_inum;
@@ -111,14 +111,14 @@ int Create(char *pathname) {
 
     /* Verify pathname */
     if (AssertPathname(pathname) < 0) {
-        fprintf(stderr, "Invalid pathname\n");
+        fprintf(stderr, "[Error] Invalid pathname\n");
         return -1;
     }
 
     /* Create file descriptor first */
     FileDescriptor *fd = CreateFileDescriptor();
     if (fd == NULL) {
-        fprintf(stderr, "File Descriptors are all used. Try closing others.\n");
+        fprintf(stderr, "[Error] File Descriptors are all used. Try closing others.\n");
         return -1;
     }
 
@@ -127,10 +127,12 @@ int Create(char *pathname) {
     int *parent_inum = malloc(sizeof(int));
     struct Stat *stat = malloc(sizeof(struct Stat));
     int result = IterateFilePath(pathname, parent_inum, stat, filename, NULL);
-    printf("result: %d\n");
+
+    printf("result: %d\n", result);
+
     /* Path was not found */
     if (result == -2) {
-        fprintf(stderr, "Path not found\n");
+        fprintf(stderr, "[Error] Path not found\n");
         free(parent_inum);
         free(stat);
         CloseFileDescriptor(fd->id);
@@ -139,7 +141,7 @@ int Create(char *pathname) {
 
     /* Target found but it is directory */
     if (result == 0 && stat->type == INODE_DIRECTORY) {
-        fprintf(stderr, "Cannot overwrite directory\n");
+        fprintf(stderr, "[Error] Cannot overwrite directory\n");
         free(parent_inum);
         free(stat);
         CloseFileDescriptor(fd->id);
@@ -155,8 +157,11 @@ int Create(char *pathname) {
 
     /* If returned inum is 0, there is an error with file creation */
     int new_inum = ((FilePacket *)packet)->inum;
-    if (new_inum == 0) {
-        fprintf(stderr, "File creation error\n");
+    if (new_inum <= 0) {
+        if (new_inum == 0) fprintf(stderr, "[Error] File creation error\n");
+        else if (new_inum == -1) fprintf(stderr, "[Error] Cannot create file in non-directory.\n");
+        else if (new_inum == -2) fprintf(stderr, "[Error] Directory has reached max size limit.\n");
+
         free(packet);
         free(parent_inum);
         free(stat);
@@ -183,14 +188,14 @@ int Open(char *pathname) {
 
     /* Verify pathname */
     if (AssertPathname(pathname) < 0) {
-        fprintf(stderr, "Invalid pathname\n");
+        fprintf(stderr, "[Error] Invalid pathname\n");
         return -1;
     }
 
     /* Create file descriptor first */
     FileDescriptor *fd = CreateFileDescriptor();
     if (fd == NULL) {
-        fprintf(stderr, "File Descriptors are all used. Try closing others.\n");
+        fprintf(stderr, "[Error] File Descriptors are all used. Try closing others.\n");
         return -1;
     }
 
@@ -201,7 +206,7 @@ int Open(char *pathname) {
 
     /* Path was not found */
     if (result < 0) {
-        fprintf(stderr, "Path not found\n");
+        fprintf(stderr, "[Error] Path not found\n");
         free(parent_inum);
         free(stat);
         CloseFileDescriptor(fd->id);
@@ -225,7 +230,7 @@ int Close(int fd_id) {
 
     /* Throw error if fd is not currently opened */
     if (CloseFileDescriptor(fd_id) < 0) {
-        fprintf(stderr, "Provided fd is not open.\n");
+        fprintf(stderr, "[Error] Provided fd is not open.\n");
         return -1;
     }
 
@@ -238,19 +243,16 @@ int Close(int fd_id) {
  */
 int Read(int fd_id, void *buf, int size) {
     TracePrintf(10, "\t┌─ [Read] fd_id: %d\n", fd_id);
-
-    printf("Size: %d\n", size);
-    printf("Address: %p\n", buf);
     /* Throw error if fd is invalid number */
     if (buf == NULL || size < 0) {
-        fprintf(stderr, "Invalid arguments on buffer or size.\n");
+        fprintf(stderr, "[Error] Invalid arguments on buffer or size.\n");
         return -1;
     }
 
     /* Throw error if fd is invalid number */
     FileDescriptor *fd = GetFileDescriptor(fd_id);
     if (fd == NULL) {
-        fprintf(stderr, "Provided fd is not open.\n");
+        fprintf(stderr, "[Error] Provided fd is not open.\n");
         return -1;
     }
 
@@ -269,7 +271,7 @@ int Read(int fd_id, void *buf, int size) {
     free(packet);
 
     if (result < 0) {
-        fprintf(stderr, "Reuse count has changed. Please close this fd.\n");
+        fprintf(stderr, "[Error] Reuse count has changed. Please close this fd.\n");
         free(packet);
         return -1;
     }
@@ -284,20 +286,16 @@ int Read(int fd_id, void *buf, int size) {
  */
 int Write(int fd_id, void *buf, int size) {
     TracePrintf(10, "\t┌─ [Write] fd_id: %d\n", fd_id);
-
-    printf("Size: %d\n", size);
-    printf("Address: %p\n", buf);
-
     /* Throw error if fd is invalid number */
     if (buf == NULL || size < 0) {
-        fprintf(stderr, "Invalid arguments on buffer or size.\n");
+        fprintf(stderr, "[Error] Invalid arguments on buffer or size.\n");
         return -1;
     }
 
     /* Throw error if fd is not opened */
     FileDescriptor *fd = GetFileDescriptor(fd_id);
     if (fd == NULL) {
-        fprintf(stderr, "Provided fd is not open.\n");
+        fprintf(stderr, "[Error] Provided fd is not open.\n");
         return -1;
     }
 
@@ -315,9 +313,9 @@ int Write(int fd_id, void *buf, int size) {
     free(packet);
 
     if (result < 0) {
-        if (result == -1) fprintf(stderr, "Trying to write beyond max file size.\n");
-        else if (result == -2) fprintf(stderr, "Trying to write to non-regular file.\n");
-        else if (result == -3) fprintf(stderr, "Reuse count has changed. Please close this fd.\n");
+        if (result == -1) fprintf(stderr, "[Error] Trying to write beyond max file size.\n");
+        else if (result == -2) fprintf(stderr, "[Error] Trying to write to non-regular file.\n");
+        else if (result == -3) fprintf(stderr, "[Error] Reuse count has changed. Please close this fd.\n");
         return -1;
     }
     fd->pos += result;
@@ -331,13 +329,10 @@ int Write(int fd_id, void *buf, int size) {
  */
 int Seek(int fd_id, int offset, int whence) {
     TracePrintf(10, "\t┌─ [Seek] fd_id: %d\n", fd_id);
-    printf("Offset: %d\n", offset);
-    printf("Whence: %d\n", whence);
-
     /* Throw error if fd is not opened */
     FileDescriptor *fd = GetFileDescriptor(fd_id);
     if (fd == NULL) {
-        fprintf(stderr, "Provided fd is not open.\n");
+        fprintf(stderr, "[Error] Provided fd is not open.\n");
         return -1;
     }
 
@@ -353,7 +348,7 @@ int Seek(int fd_id, int offset, int whence) {
     free(packet);
 
     if (fd->reuse != reuse) {
-        fprintf(stderr, "Reuse count has changed. Please close this fd.\n");
+        fprintf(stderr, "[Error] Reuse count has changed. Please close this fd.\n");
         free(packet);
         return -1;
     }
@@ -370,12 +365,12 @@ int Seek(int fd_id, int offset, int whence) {
             new_pos = size + offset;
             break;
         default:
-            fprintf(stderr, "Invalid whence provided.\n");
+            fprintf(stderr, "[Error] Invalid whence provided.\n");
             return -1;
     }
 
     if (new_pos < 0) {
-        fprintf(stderr, "fd position cannot be negative.\n");
+        fprintf(stderr, "[Error] Updated position cannot be negative.\n");
         return -1;
     }
 
@@ -393,17 +388,14 @@ int Link(char *oldname, char *newname) {
 
     /* Verify pathname */
     if (AssertPathname(oldname) < 0) {
-        fprintf(stderr, "Invalid old pathname\n");
+        fprintf(stderr, "[Error] Invalid old pathname\n");
         return -1;
     }
 
     if (AssertPathname(newname) < 0) {
-        fprintf(stderr, "Invalid new pathname\n");
+        fprintf(stderr, "[Error] Invalid new pathname\n");
         return -1;
     }
-
-    printf("Old Name: %s\n", oldname);
-    printf("New Name: %s\n", newname);
 
     /* Iterate over both components */
     char new_filename[DIRNAMELEN];
@@ -411,11 +403,11 @@ int Link(char *oldname, char *newname) {
     int *new_parent_inum = malloc(sizeof(int));
     struct Stat *old_stat = malloc(sizeof(struct Stat));
     int result1 = IterateFilePath(oldname, old_parent_inum, old_stat, NULL, NULL);
-    int result2 = IterateFilePath(newname, new_parent_inum, NULL, NULL, NULL);
+    int result2 = IterateFilePath(newname, new_parent_inum, NULL, new_filename, NULL);
 
     /* Oldname was not found */
     if (result1 < 0) {
-        fprintf(stderr, "Path %s not found\n", oldname);
+        fprintf(stderr, "[Error] Path %s not found\n", oldname);
         free(old_parent_inum);
         free(new_parent_inum);
         free(old_stat);
@@ -424,7 +416,7 @@ int Link(char *oldname, char *newname) {
 
     /* Oldname cannot be directory */
     if (old_stat->type != INODE_REGULAR) {
-        fprintf(stderr, "You can only create hard link on regular file.\n");
+        fprintf(stderr, "[Error] You can only create hard link on regular file.\n");
         free(old_parent_inum);
         free(new_parent_inum);
         free(old_stat);
@@ -433,7 +425,7 @@ int Link(char *oldname, char *newname) {
 
     /* Newname path was not found */
     if (result2 == -2) {
-        fprintf(stderr, "Path %s not found.\n", newname);
+        fprintf(stderr, "[Error] Path %s not found.\n", newname);
         free(old_parent_inum);
         free(new_parent_inum);
         free(old_stat);
@@ -442,7 +434,7 @@ int Link(char *oldname, char *newname) {
 
     /* Newname file already exists */
     if (result2 == 0) {
-        fprintf(stderr, "File %s already exists.\n", newname);
+        fprintf(stderr, "[Error] File %s already exists.\n", newname);
         free(old_parent_inum);
         free(new_parent_inum);
         free(old_stat);
@@ -463,7 +455,7 @@ int Link(char *oldname, char *newname) {
     free(packet);
 
     if (result < 0) {
-        fprintf(stderr, "Link error.\n");
+        fprintf(stderr, "[Error] Link error.\n");
         return -1;
     }
 
@@ -486,7 +478,7 @@ int Unlink(char *pathname) {
 
     /* Path was not found */
     if (result < 0) {
-        fprintf(stderr, "Path not found\n");
+        fprintf(stderr, "[Error] Path not found\n");
         free(parent_inum);
         free(stat);
         return -1;
@@ -494,7 +486,7 @@ int Unlink(char *pathname) {
 
     /* Target found but it is directory */
     if (stat->type == INODE_DIRECTORY) {
-        fprintf(stderr, "Cannot unlink directory\n");
+        fprintf(stderr, "[Error] Cannot unlink directory\n");
         free(parent_inum);
         free(stat);
         return -1;
@@ -506,13 +498,12 @@ int Unlink(char *pathname) {
     packet->arg2 = *parent_inum;
     Send(packet, -FILE_SERVER);
     result = packet->arg1;
-
     free(parent_inum);
     free(stat);
     free(packet);
 
     if (result < 0) {
-        fprintf(stderr, "Unlink error.\n");
+        fprintf(stderr, "[Error] Unlink error.\n");
         return -1;
     }
 
@@ -545,7 +536,7 @@ int MkDir(char *pathname) {
 
     /* If target_inum is found, return ERROR */
     if (result == 0) {
-        fprintf(stderr, "File already exist\n");
+        fprintf(stderr, "[Error] File already exist\n");
         free(parent_inum);
         free(stat);
         return -1;
@@ -553,7 +544,7 @@ int MkDir(char *pathname) {
 
     /* Target is not found and it isn't the last one */
     if (result == -2) {
-        fprintf(stderr, "Path not found\n");
+        fprintf(stderr, "[Error] Path not found\n");
         free(parent_inum);
         free(stat);
         return -1;
@@ -574,7 +565,7 @@ int MkDir(char *pathname) {
 
     /* If returned inum is 0, there is an error with file creation */
     if (new_inum == 0) {
-        fprintf(stderr, "File creation error\n");
+        fprintf(stderr, "[Error] File creation error\n");
         return -1;
     }
 
@@ -598,14 +589,14 @@ int RmDir(char *pathname) {
     int result = IterateFilePath(pathname, parent_inum, stat, filename, NULL);
 
     if (filename[0] == '.' && filename[1] == '\0') {
-        fprintf(stderr, "Cannot RmDir .\n");
+        fprintf(stderr, "[Error] Cannot RmDir .\n");
         free(parent_inum);
         free(stat);
         return -1;
     }
 
     if (filename[0] == '.' && filename[1] == '.' && filename[2] == '\0') {
-        fprintf(stderr, "Cannot RmDir ..\n");
+        fprintf(stderr, "[Error] Cannot RmDir ..\n");
         free(parent_inum);
         free(stat);
         return -1;
@@ -613,7 +604,7 @@ int RmDir(char *pathname) {
 
     /* Target is not found */
     if (result < 0) {
-        fprintf(stderr, "Path not found\n");
+        fprintf(stderr, "[Error] Path not found\n");
         free(parent_inum);
         free(stat);
         return -1;
@@ -623,6 +614,7 @@ int RmDir(char *pathname) {
     DataPacket *packet = malloc(PACKET_SIZE);
     packet->packet_type = MSG_DELETE_DIR;
     packet->arg1 = stat->inum;
+    packet->arg2 = *parent_inum;
     Send(packet, -FILE_SERVER);
     result = packet->arg1;
 
@@ -631,9 +623,10 @@ int RmDir(char *pathname) {
     free(stat);
 
     if (result < 0) {
-        if (result == -1) fprintf(stderr, "Cannot delete root directory.\n");
-        else if (result == -2) fprintf(stderr, "Cannot call RmDir on regular file.\n");
-        else if (result == -3) fprintf(stderr, "There are other directories left in this directory.\n");
+        if (result == -1) fprintf(stderr, "[Error] Cannot delete root directory.\n");
+        else if (result == -2) fprintf(stderr, "[Error] Parent is not a directory.\n");
+        else if (result == -3) fprintf(stderr, "[Error] Cannot call RmDir on regular file.\n");
+        else if (result == -4) fprintf(stderr, "[Error] There are other directories left in this directory.\n");
         return -1;
     }
 
@@ -654,19 +647,20 @@ int ChDir(char *pathname) {
 
     /* Path was not found */
     if (result < 0) {
-        fprintf(stderr, "Path not found\n");
+        fprintf(stderr, "[Error] Path not found\n");
         free(parent_inum);
         free(stat);
         return -1;
     }
 
     if (stat->type != INODE_DIRECTORY) {
-        fprintf(stderr, "Not directory\n");
+        fprintf(stderr, "[Error] Not directory\n");
         free(parent_inum);
         free(stat);
         return -1;
     }
 
+    printf("stat->inum: %d\n", stat->inum);
     current_inum = stat->inum;
     free(parent_inum);
     free(stat);
@@ -689,7 +683,7 @@ int Stat(char *pathname, struct Stat *statbuf) {
 
     /* Path was not found */
     if (result < 0) {
-        fprintf(stderr, "Path not found\n");
+        fprintf(stderr, "[Error] Path not found\n");
         free(parent_inum);
         return -1;
     }
