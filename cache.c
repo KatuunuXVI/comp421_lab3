@@ -136,8 +136,10 @@ struct inode_cache_entry* LookUpInode(struct inode_cache *stack, int inum) {
  */
 void WriteBackInode(struct inode_cache_entry* out) {
     printf("Inode %d evicted, syncing\n",out->inum);
-    void* inode_block = GetBlock((out->inum / 8) + 1);
+    struct block_cache_entry* inode_block_entry = GetBlock((out->inum / 8) + 1);
+    void* inode_block = inode_block_entry->block;
     struct inode* overwrite = (struct inode *)inode_block + (out->inum % 8);
+    inode_block_entry->dirty = 1;
     memcpy(overwrite, out->inode, sizeof(struct inode));
     out->dirty = 0;
 }
