@@ -6,6 +6,7 @@
 #include <string.h>
 #include "yfs.h"
 #include <assert.h>
+#define DEBUG 0
 
 int inode_count;
 int block_count;
@@ -135,7 +136,7 @@ struct inode_cache_entry* LookUpInode(struct inode_cache *stack, int inum) {
  * @param out Inode that was pushed out of the cache
  */
 void WriteBackInode(struct inode_cache_entry* out) {
-    printf("Inode %d evicted, syncing\n",out->inum);
+    if (DEBUG) printf("Inode %d evicted, syncing\n",out->inum);
     struct block_cache_entry* inode_block_entry = GetBlock((out->inum / 8) + 1);
     void* inode_block = inode_block_entry->block;
     struct inode* overwrite = (struct inode *)inode_block + (out->inum % 8);
@@ -247,7 +248,7 @@ void AddToBlockCache(struct block_cache *stack, void* block, int block_number) {
 
         /** Write Back the Block if it is dirty to avoid losing data*/
         if (entry->dirty && entry->block_number > 0) {
-            printf("Writing block to sector: %d\n", stack->base->block_number);
+            if (DEBUG) printf("Writing block to sector: %d\n", stack->base->block_number);
             WriteSector(stack->base->block_number, stack->base->block);
         }
         if (entry->prev_hash != NULL && entry->next_hash != NULL) {
@@ -373,21 +374,11 @@ struct block_cache_entry* GetBlock(int block_num) {
     assert(block_num >= 1 && block_num <= block_count);
 
     /** First Check Block Cache*/
-    int found = 0;
-    struct block_cache_entry *current = block_stack->top;
-    while (current != NULL && !found) {
-        found = (current->block_number == block_num);
-        if (found) break;
-        current = current->next_lru;
-    }
+    struct block_cache_entry *current = LookUpBlock(block_stack,block_num);
+    if (DEBUG) printf("GetBlock: %d found: %d\n", block_num, current != NULL);
+    if (current != NULL) return current;
 
-    printf("GetBlock: %d found: %d\n", block_num, found);
-
-    if (found) {
-        return current;
-    }
-
-    /** If not found in cache, read directly from disk */
+   /** If not found in cache, read directly from disk */
     void *block_buffer = malloc(SECTORSIZE);
     ReadSector(block_num, block_buffer);
     AddToBlockCache(block_stack, block_buffer, block_num);
