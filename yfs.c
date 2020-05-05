@@ -11,7 +11,7 @@
 #include "packet.h"
 #include "dirname.h"
 
-#define DEBUG 1
+#define DEBUG 0
 #define DIRSIZE             (int)sizeof(struct dir_entry)
 #define MAX_DIRECT_SIZE     BLOCKSIZE * NUM_DIRECT
 #define MAX_INDIRECT_SIZE   BLOCKSIZE * (BLOCKSIZE / sizeof(int))
@@ -567,8 +567,6 @@ void SearchFile(void *packet, int pid) {
 
     /* Cannot search inside non-directory. */
     if (parent_inode->type != INODE_DIRECTORY) return;
-
-    PrintBlockCacheStack(block_stack);
     int target_inum = SearchDirectory(parent_inode, dirname);
 
     /* Not found */
