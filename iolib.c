@@ -127,7 +127,7 @@ int Create(char *pathname) {
     int *parent_inum = malloc(sizeof(int));
     struct Stat *stat = malloc(sizeof(struct Stat));
     int result = IterateFilePath(pathname, parent_inum, stat, filename, NULL);
-
+    printf("result: %d\n");
     /* Path was not found */
     if (result == -2) {
         fprintf(stderr, "Path not found\n");
