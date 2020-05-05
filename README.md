@@ -56,9 +56,8 @@
   - Create a dir, remove dir with file and without file
 - [x] trmdir2.c
   - Create a dir, chdir in there, remove that dir, and create relative file (should fail).
-- [ ] Test indirect block
-- [ ] Test filling dir holes
-- [ ] Test reading Truncate
+- [x] tindirect1.c
+  - Create a file which writes in first block and seek beyond direct to write indirect blocks. Then unlink it to see if it frees all relevant blocks.
 
 ## Notes
 

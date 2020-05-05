@@ -46,9 +46,10 @@ void PrintInode(struct inode *inode) {
     int block_count;
     int dir_count;
     int inner_count;
+    int block_id;
     struct dir_entry *block;
     char *char_block;
-    // int *indirect_block;
+    int *indirect_block;
 
     printf("----- Printing Inode -----\n");
     printf("inode->type: %d\n", inode->type);
@@ -64,11 +65,26 @@ void PrintInode(struct inode *inode) {
     block_count = GetBlockCount(inode->size);
     printf("block_count: %d\n", block_count);
 
+    if (inode->size >= MAX_DIRECT_SIZE) {
+        indirect_block = GetBlock(inode->indirect)->block;
+        printf("indirect blocks %d:\n", inode->indirect);
+        for (i = 0; i < block_count - NUM_DIRECT; i++) {
+            printf("\t- %d\n", indirect_block[i]);
+        }
+    }
+
     for (i = 0; i < block_count; i++) {
-        printf("inode->direct[%d]: %d\n", i, inode->direct[i]);
+        if (i >= NUM_DIRECT) {
+            block_id = indirect_block[i - NUM_DIRECT];
+            printf("indirect[%d]: %d\n", i - NUM_DIRECT, block_id);
+        } else {
+            block_id = inode->direct[i];
+            printf("direct[%d]: %d\n", i, block_id);
+        }
+
+        if (block_id == 0) continue;
         if (inode->type == INODE_DIRECTORY) {
-            printf("block_id: %d\n", inode->direct[i]);
-            block = GetBlock(inode->direct[i])->block;
+            block = GetBlock(block_id)->block;
             if ((i + 1) * BLOCKSIZE > inode->size) {
                 inner_count = dir_count % DIR_PER_BLOCK;
             } else {
@@ -81,24 +97,19 @@ void PrintInode(struct inode *inode) {
         }
 
         if (inode->type == INODE_REGULAR) {
-            if (inode->direct[i] == 0) continue;
-            char_block = GetBlock(inode->direct[i])->block;
+            char_block = GetBlock(block_id)->block;
             if ((i + 1) * BLOCKSIZE > inode->size) {
                 inner_count = inode->size % BLOCKSIZE;
             } else {
                 inner_count = BLOCKSIZE;
             }
-            printf("--- Printing Block ---\n");
+
+            printf("----- Printing Block -----\n");
             for (j = 0; j < inner_count; j++) {
                 printf("%c", char_block[j]);
             }
-            printf("\n--- End of Block ---\n");
+            printf("\n----- End of Block -----\n");
         }
-    }
-
-    if (inode->size >= MAX_DIRECT_SIZE) {
-        printf("inode->indirect: %d\n", inode->indirect);
-        // indirect_block = GetBlock(inode->indirect);
     }
 
     printf("----- End of Inode -----\n");
