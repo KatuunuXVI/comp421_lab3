@@ -128,8 +128,6 @@ int Create(char *pathname) {
     struct Stat *stat = malloc(sizeof(struct Stat));
     int result = IterateFilePath(pathname, parent_inum, stat, filename, NULL);
 
-    printf("result: %d\n", result);
-
     /* Path was not found */
     if (result == -2) {
         fprintf(stderr, "[Error] Path not found\n");
@@ -321,7 +319,7 @@ int Write(int fd_id, void *buf, int size) {
     fd->pos += result;
 
     TracePrintf(10, "\t└─ [Write size: %d]\n\n", result);
-    return fd->pos;
+    return result;
 }
 
 /**
@@ -660,7 +658,6 @@ int ChDir(char *pathname) {
         return -1;
     }
 
-    printf("stat->inum: %d\n", stat->inum);
     current_inum = stat->inum;
     free(parent_inum);
     free(stat);

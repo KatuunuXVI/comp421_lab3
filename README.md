@@ -57,7 +57,6 @@
 - [x] trmdir2.c
   - Create a dir, chdir in there, remove that dir, and create relative file (should fail).
 - [ ] Test indirect block
-- [ ] Test RmDir
 - [ ] Test filling dir holes
 - [ ] Test reading Truncate
 
