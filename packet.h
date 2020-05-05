@@ -1,8 +1,12 @@
 #define PACKET_SIZE 32
 
+// Send: FilePacket
+// Recieve: FilePacket
+#define MSG_GET_FILE 0
+
 // Send: DataPacket
 // Recieve: FilePacket
-#define MSG_GET_FILE 1
+#define MSG_SEARCH_FILE 1
 
 // Send: DataPacket
 // Recieve: FilePacket
@@ -50,10 +54,11 @@ typedef struct UnknownPacket {
  */
 typedef struct DataPacket {
   short packet_type; /* packet type (2 bytes) */
-  char unused[10];
+  char unused[6];
   int arg1; /* integer argument (4 bytes) */
   int arg2; /* integer argument (4 bytes) */
   int arg3; /* integer argument (4 bytes) */
+  int arg4; /* integer arugment (4 bytes) */
   void *pointer; /* pointer argument (8 bytes) */
 } DataPacket;
 
@@ -62,10 +67,11 @@ typedef struct DataPacket {
  */
 typedef struct FilePacket {
   short packet_type; /* packet type (2 bytes) */
-  char unused[14]; /* 14 unused bytes for padding */
+  char unused[10]; /* 10 unused bytes for padding */
 
   int inum; /* inode number (4 bytes) */
   int type; /* type of file (4 bytes) */
   int size; /* size of file in bytes (4 bytes) */
   int nlink; /* link count of file's inode (4 bytes) */
+  int reuse; /* reuse count of file's inode (4 bytes )*/
 } FilePacket;

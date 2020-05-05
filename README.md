@@ -38,9 +38,13 @@
 
 ## Additional Test Cases
 
+- [ ] tseek.c
+  - Test SEEK_SET and SEEK_CUR
 - [ ] Test reuse
 - [ ] Test creating block holes
+- [ ] Test seek
 - [ ] Test indirect block
+- [ ] Test RmDir
 
 ## Notes
 

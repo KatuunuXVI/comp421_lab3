@@ -25,16 +25,17 @@ int AssertPathname(char *pathname) {
  * Helper for Iterating over pathname via file server
  * - pathname: pathname to iterate
  * - parent_inum: inum of second last component only if return value is 0 or -1
- * - filename (output): dirname of last component only if return value is 0 or -1 (optional)
  * - stat (output): file stat of last component only if return value is 0 (optional)
+ * - filename (output): dirname of last component only if return value is 0 or -1 (optional)
+ * - reuse (output): reuse count of last component only if return value is 0 (optional)
  * Return 0 if all components are found
  * Return -1 if all but last component is found
  * Else return -2
  */
-int IterateFilePath(char *pathname, int *parent_inum, char *filename, struct Stat *stat) {
+int IterateFilePath(char *pathname, int *parent_inum, struct Stat *stat, char *filename, int *reuse) {
     /* Used for sending/receiving data */
     void *packet = malloc(PACKET_SIZE);
-    ((DataPacket *)packet)->packet_type = MSG_GET_FILE;
+    ((DataPacket *)packet)->packet_type = MSG_SEARCH_FILE;
 
     /* Tokenize pathname */
     PathIterator *it = ParsePath(pathname);
@@ -81,11 +82,17 @@ int IterateFilePath(char *pathname, int *parent_inum, char *filename, struct Sta
         if (next_inum == 0) last_not_found = 1;
     }
 
-    if (next_inum != 0 && stat) {
-        stat->inum = ((FilePacket *)packet)->inum;
-        stat->type = ((FilePacket *)packet)->type;
-        stat->size = ((FilePacket *)packet)->size;
-        stat->nlink = ((FilePacket *)packet)->nlink;
+    if (next_inum != 0) {
+        if (stat) {
+            stat->inum = ((FilePacket *)packet)->inum;
+            stat->type = ((FilePacket *)packet)->type;
+            stat->size = ((FilePacket *)packet)->size;
+            stat->nlink = ((FilePacket *)packet)->nlink;
+        }
+
+        if (reuse) {
+            *reuse = ((FilePacket *)packet)->reuse;
+        }
     }
 
     DeletePathIterator(it);
@@ -103,17 +110,23 @@ int Create(char *pathname) {
     TracePrintf(10, "\t┌─ [Create] path: %s\n", pathname);
 
     /* Verify pathname */
-    if (AssertPathname(pathname) < 0) return -1;
+    if (AssertPathname(pathname) < 0) {
+        fprintf(stderr, "Invalid pathname\n");
+        return -1;
+    }
 
     /* Create file descriptor first */
     FileDescriptor *fd = CreateFileDescriptor();
-    if (fd == NULL) return -1;
+    if (fd == NULL) {
+        fprintf(stderr, "File Descriptors are all used. Try closing others.\n");
+        return -1;
+    }
 
     /* Iterate over all components */
     char filename[DIRNAMELEN];
     int *parent_inum = malloc(sizeof(int));
     struct Stat *stat = malloc(sizeof(struct Stat));
-    int result = IterateFilePath(pathname, parent_inum, filename, stat);
+    int result = IterateFilePath(pathname, parent_inum, stat, filename, NULL);
 
     /* Path was not found */
     if (result == -2) {
@@ -126,7 +139,7 @@ int Create(char *pathname) {
 
     /* Target found but it is directory */
     if (result == 0 && stat->type == INODE_DIRECTORY) {
-        fprintf(stderr, "Cannot override directory\n");
+        fprintf(stderr, "Cannot overwrite directory\n");
         free(parent_inum);
         free(stat);
         CloseFileDescriptor(fd->id);
@@ -152,6 +165,7 @@ int Create(char *pathname) {
     }
 
     fd->inum = new_inum;
+    fd->reuse = ((FilePacket *)packet)->reuse;
     fd->pos = 0;
 
     free(packet);
@@ -168,16 +182,22 @@ int Open(char *pathname) {
     TracePrintf(10, "\t┌─ [Open] path: %s\n", pathname);
 
     /* Verify pathname */
-    if (AssertPathname(pathname) < 0) return -1;
+    if (AssertPathname(pathname) < 0) {
+        fprintf(stderr, "Invalid pathname\n");
+        return -1;
+    }
 
     /* Create file descriptor first */
     FileDescriptor *fd = CreateFileDescriptor();
-    if (fd == NULL) return -1;
+    if (fd == NULL) {
+        fprintf(stderr, "File Descriptors are all used. Try closing others.\n");
+        return -1;
+    }
 
     /* Iterate over all components */
     int *parent_inum = malloc(sizeof(int));
     struct Stat *stat = malloc(sizeof(struct Stat));
-    int result = IterateFilePath(pathname, parent_inum, NULL, stat);
+    int result = IterateFilePath(pathname, parent_inum, stat, NULL, &fd->reuse);
 
     /* Path was not found */
     if (result < 0) {
@@ -204,7 +224,10 @@ int Close(int fd_id) {
     TracePrintf(10, "\t┌─ [Close] fd_id: %d\n", fd_id);
 
     /* Throw error if fd is not currently opened */
-    if (CloseFileDescriptor(fd_id) < 0) return -1;
+    if (CloseFileDescriptor(fd_id) < 0) {
+        fprintf(stderr, "Provided fd is not open.\n");
+        return -1;
+    }
 
     TracePrintf(10, "\t└─ [Close]\n\n");
     return 0;
@@ -219,11 +242,17 @@ int Read(int fd_id, void *buf, int size) {
     printf("Size: %d\n", size);
     printf("Address: %p\n", buf);
     /* Throw error if fd is invalid number */
-    if (buf == NULL || size < 0) return -1;
+    if (buf == NULL || size < 0) {
+        fprintf(stderr, "Invalid arguments on buffer or size.\n");
+        return -1;
+    }
 
     /* Throw error if fd is invalid number */
     FileDescriptor *fd = GetFileDescriptor(fd_id);
-    if (fd == NULL) return -1;
+    if (fd == NULL) {
+        fprintf(stderr, "Provided fd is not open.\n");
+        return -1;
+    }
 
     int result;
     DataPacket *packet = malloc(PACKET_SIZE);
@@ -232,14 +261,20 @@ int Read(int fd_id, void *buf, int size) {
     packet->arg1 = fd->inum;
     packet->arg2 = fd->pos;
     packet->arg3 = size;
+    packet->arg4 = fd->reuse;
     packet->pointer = (void *)buf;
     Send(packet, -FILE_SERVER);
+
     result = packet->arg1;
     free(packet);
 
-    if (result < 0) return -1;
-    fd->pos += result;
+    if (result < 0) {
+        fprintf(stderr, "Reuse count has changed. Please close this fd.\n");
+        free(packet);
+        return -1;
+    }
 
+    fd->pos += result;
     TracePrintf(10, "\t└─ [Read size: %d]\n\n", result);
     return result;
 }
@@ -252,12 +287,19 @@ int Write(int fd_id, void *buf, int size) {
 
     printf("Size: %d\n", size);
     printf("Address: %p\n", buf);
-    /* Throw error if fd is invalid number */
-    if (buf == NULL || size < 0) return -1;
 
     /* Throw error if fd is invalid number */
+    if (buf == NULL || size < 0) {
+        fprintf(stderr, "Invalid arguments on buffer or size.\n");
+        return -1;
+    }
+
+    /* Throw error if fd is not opened */
     FileDescriptor *fd = GetFileDescriptor(fd_id);
-    if (fd == NULL) return -1;
+    if (fd == NULL) {
+        fprintf(stderr, "Provided fd is not open.\n");
+        return -1;
+    }
 
     int result;
     DataPacket *packet = malloc(PACKET_SIZE);
@@ -266,12 +308,18 @@ int Write(int fd_id, void *buf, int size) {
     packet->arg1 = fd->inum;
     packet->arg2 = fd->pos;
     packet->arg3 = size;
+    packet->arg4 = fd->reuse;
     packet->pointer = (void *)buf;
     Send(packet, -FILE_SERVER);
     result = packet->arg1;
     free(packet);
 
-    if (result < 0) return -1;
+    if (result < 0) {
+        if (result == -1) fprintf(stderr, "Trying to write beyond max file size.\n");
+        else if (result == -2) fprintf(stderr, "Trying to write to non-regular file.\n");
+        else if (result == -3) fprintf(stderr, "Reuse count has changed. Please close this fd.\n");
+        return -1;
+    }
     fd->pos += result;
 
     TracePrintf(10, "\t└─ [Write size: %d]\n\n", result);
@@ -285,14 +333,56 @@ int Seek(int fd_id, int offset, int whence) {
     TracePrintf(10, "\t┌─ [Seek] fd_id: %d\n", fd_id);
     printf("Offset: %d\n", offset);
     printf("Whence: %d\n", whence);
-    /*
-    // Throw error if fd is invalid number
-    // Throw error if fd is not opened
-    // This call may not required file server
-    // if local fd remembers all file metadata
-    */
+
+    /* Throw error if fd is not opened */
+    FileDescriptor *fd = GetFileDescriptor(fd_id);
+    if (fd == NULL) {
+        fprintf(stderr, "Provided fd is not open.\n");
+        return -1;
+    }
+
+    /* Fetch file data using inum saved in fd */
+    FilePacket *packet = malloc(PACKET_SIZE);
+    memset(packet, 0, PACKET_SIZE);
+    packet->packet_type = MSG_GET_FILE;
+    packet->inum = fd->inum;
+    Send(packet, -FILE_SERVER);
+
+    int size = packet->size;
+    int reuse = packet->reuse;
+    free(packet);
+
+    if (fd->reuse != reuse) {
+        fprintf(stderr, "Reuse count has changed. Please close this fd.\n");
+        free(packet);
+        return -1;
+    }
+
+    int new_pos;
+    switch (whence) {
+        case SEEK_SET:
+            new_pos = offset;
+            break;
+        case SEEK_CUR:
+            new_pos = fd->pos + offset;
+            break;
+        case SEEK_END:
+            new_pos = size + offset;
+            break;
+        default:
+            fprintf(stderr, "Invalid whence provided.\n");
+            return -1;
+    }
+
+    if (new_pos < 0) {
+        fprintf(stderr, "fd position cannot be negative.\n");
+        return -1;
+    }
+
+    fd->pos = new_pos;
+
     TracePrintf(10, "\t└─ [Seek]\n\n");
-    return 0;
+    return new_pos;
 }
 
 /**
@@ -339,7 +429,7 @@ int MkDir(char *pathname) {
     char filename[DIRNAMELEN];
     int *parent_inum = malloc(sizeof(int));
     struct Stat *stat = malloc(sizeof(struct Stat));
-    int result = IterateFilePath(pathname, parent_inum, filename, stat);
+    int result = IterateFilePath(pathname, parent_inum, stat, filename, NULL);
 
     /* If target_inum is found, return ERROR */
     if (result == 0) {
@@ -393,7 +483,21 @@ int RmDir(char *pathname) {
     char filename[DIRNAMELEN];
     int *parent_inum = malloc(sizeof(int));
     struct Stat *stat = malloc(sizeof(struct Stat));
-    int result = IterateFilePath(pathname, parent_inum, filename, stat);
+    int result = IterateFilePath(pathname, parent_inum, stat, filename, NULL);
+
+    if (filename[0] == '.' && filename[1] == '\0') {
+        fprintf(stderr, "Cannot RmDir .\n");
+        free(parent_inum);
+        free(stat);
+        return -1;
+    }
+
+    if (filename[0] == '.' && filename[1] == '.' && filename[2] == '\0') {
+        fprintf(stderr, "Cannot RmDir ..\n");
+        free(parent_inum);
+        free(stat);
+        return -1;
+    }
 
     /* Target is not found */
     if (result < 0) {
@@ -404,19 +508,20 @@ int RmDir(char *pathname) {
     }
 
     /* Delete directory */
-    int success;
     DataPacket *packet = malloc(PACKET_SIZE);
     packet->packet_type = MSG_DELETE_DIR;
     packet->arg1 = stat->inum;
     Send(packet, -FILE_SERVER);
-    success = packet->arg1;
+    result = packet->arg1;
 
     free(packet);
     free(parent_inum);
     free(stat);
 
-    if (success < 0) {
-        fprintf(stderr, "Directory delection error\n");
+    if (result < 0) {
+        if (result == -1) fprintf(stderr, "Cannot delete root directory.\n");
+        else if (result == -2) fprintf(stderr, "Cannot call RmDir on regular file.\n");
+        else if (result == -3) fprintf(stderr, "There are other directories left in this directory.\n");
         return -1;
     }
 
@@ -433,7 +538,7 @@ int ChDir(char *pathname) {
     /* Iterate over all components */
     int *parent_inum = malloc(sizeof(int));
     struct Stat *stat = malloc(sizeof(struct Stat));
-    int result = IterateFilePath(pathname, parent_inum, NULL, stat);
+    int result = IterateFilePath(pathname, parent_inum, stat, NULL, NULL);
 
     /* Path was not found */
     if (result < 0) {
@@ -468,7 +573,7 @@ int Stat(char *pathname, struct Stat *statbuf) {
 
     /* Iterate over all components */
     int *parent_inum = malloc(sizeof(int));
-    int result = IterateFilePath(pathname, parent_inum, NULL, statbuf);
+    int result = IterateFilePath(pathname, parent_inum, statbuf, NULL, NULL);
 
     /* Path was not found */
     if (result < 0) {
