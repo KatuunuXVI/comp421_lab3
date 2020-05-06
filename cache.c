@@ -1,11 +1,10 @@
-#include "cache.h"
-#include <comp421/filesystem.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <comp421/yalnix.h>
 #include <string.h>
-#include "yfs.h"
 #include <assert.h>
+#include <comp421/yalnix.h>
+#include <comp421/filesystem.h>
+#include "cache.h"
 #define DEBUG 0
 
 int inode_count;
