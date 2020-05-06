@@ -248,8 +248,8 @@ void AddToBlockCache(struct block_cache *stack, void* block, int block_number) {
 
         /** Write Back the Block if it is dirty to avoid losing data*/
         if (entry->dirty && entry->block_number > 0) {
-            if (DEBUG) printf("Writing block to sector: %d\n", stack->base->block_number);
-            WriteSector(stack->base->block_number, stack->base->block);
+            if (DEBUG) printf("Writing block to sector: %d\n", entry->block_number);
+            WriteSector(entry->block_number, entry->block);
         }
         if (entry->prev_hash != NULL && entry->next_hash != NULL) {
             /**Both Neighbors aren't Null*/

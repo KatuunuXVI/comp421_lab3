@@ -159,6 +159,8 @@ int Create(char *pathname) {
         if (new_inum == 0) fprintf(stderr, "[Error] File creation error\n");
         else if (new_inum == -1) fprintf(stderr, "[Error] Cannot create file in non-directory.\n");
         else if (new_inum == -2) fprintf(stderr, "[Error] Directory has reached max size limit.\n");
+        else if (new_inum == -3) fprintf(stderr, "[Error] Not enough inode left.\n");
+        else if (new_inum == -4) fprintf(stderr, "[Error] Not enough block left.\n");
 
         free(packet);
         free(parent_inum);
@@ -269,8 +271,8 @@ int Read(int fd_id, void *buf, int size) {
     free(packet);
 
     if (result < 0) {
-        fprintf(stderr, "[Error] Reuse count has changed. Please close this fd.\n");
-        free(packet);
+        if (result == -1) fprintf(stderr, "[Error] Reuse count has changed. Please close this fd.\n");
+        else if (result == -2) fprintf(stderr, "[Error] This file is freed.\n");
         return -1;
     }
 
@@ -314,6 +316,7 @@ int Write(int fd_id, void *buf, int size) {
         if (result == -1) fprintf(stderr, "[Error] Trying to write beyond max file size.\n");
         else if (result == -2) fprintf(stderr, "[Error] Trying to write to non-regular file.\n");
         else if (result == -3) fprintf(stderr, "[Error] Reuse count has changed. Please close this fd.\n");
+        else if (result == -4) fprintf(stderr, "[Error] Not enough block left.\n");
         return -1;
     }
     fd->pos += result;
@@ -453,7 +456,10 @@ int Link(char *oldname, char *newname) {
     free(packet);
 
     if (result < 0) {
-        fprintf(stderr, "[Error] Link error.\n");
+        if (result == -1) fprintf(stderr, "[Error] Unexpected CopyFrom error.\n");
+        else if (result == -2) fprintf(stderr, "[Error] You can only create hard link on regular file.\n");
+        else if (result == -3) fprintf(stderr, "[Error] Parent of new path is not a directory.\n");
+        else if (result == -4) fprintf(stderr, "[Error] Not enough block left.\n");
         return -1;
     }
 

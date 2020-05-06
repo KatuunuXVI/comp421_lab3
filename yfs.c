@@ -46,9 +46,10 @@ void PrintInode(struct inode *inode) {
     int block_count;
     int dir_count;
     int inner_count;
+    int block_id;
     struct dir_entry *block;
     char *char_block;
-    // int *indirect_block;
+    int *indirect_block;
 
     printf("----- Printing Inode -----\n");
     printf("inode->type: %d\n", inode->type);
@@ -64,11 +65,26 @@ void PrintInode(struct inode *inode) {
     block_count = GetBlockCount(inode->size);
     printf("block_count: %d\n", block_count);
 
+    if (inode->size >= MAX_DIRECT_SIZE) {
+        indirect_block = GetBlock(inode->indirect)->block;
+        printf("indirect blocks %d:\n", inode->indirect);
+        for (i = 0; i < block_count - NUM_DIRECT; i++) {
+            printf("\t- %d\n", indirect_block[i]);
+        }
+    }
+
     for (i = 0; i < block_count; i++) {
-        printf("inode->direct[%d]: %d\n", i, inode->direct[i]);
+        if (i >= NUM_DIRECT) {
+            block_id = indirect_block[i - NUM_DIRECT];
+            printf("indirect[%d]: %d\n", i - NUM_DIRECT, block_id);
+        } else {
+            block_id = inode->direct[i];
+            printf("direct[%d]: %d\n", i, block_id);
+        }
+
+        if (block_id == 0) continue;
         if (inode->type == INODE_DIRECTORY) {
-            printf("block_id: %d\n", inode->direct[i]);
-            block = GetBlock(inode->direct[i])->block;
+            block = GetBlock(block_id)->block;
             if ((i + 1) * BLOCKSIZE > inode->size) {
                 inner_count = dir_count % DIR_PER_BLOCK;
             } else {
@@ -81,24 +97,19 @@ void PrintInode(struct inode *inode) {
         }
 
         if (inode->type == INODE_REGULAR) {
-            if (inode->direct[i] == 0) continue;
-            char_block = GetBlock(inode->direct[i])->block;
+            char_block = GetBlock(block_id)->block;
             if ((i + 1) * BLOCKSIZE > inode->size) {
                 inner_count = inode->size % BLOCKSIZE;
             } else {
                 inner_count = BLOCKSIZE;
             }
-            printf("--- Printing Block ---\n");
+
+            printf("----- Printing Block -----\n");
             for (j = 0; j < inner_count; j++) {
                 printf("%c", char_block[j]);
             }
-            printf("\n--- End of Block ---\n");
+            printf("\n----- End of Block -----\n");
         }
-    }
-
-    if (inode->size >= MAX_DIRECT_SIZE) {
-        printf("inode->indirect: %d\n", inode->indirect);
-        // indirect_block = GetBlock(inode->indirect);
     }
 
     printf("----- End of Inode -----\n");
@@ -377,7 +388,6 @@ int RegisterDirectory(struct inode* parent_inode, int new_inum, char *dirname) {
     block[inner_index].inum = new_inum;
     SetDirectoryName(block[inner_index].name, dirname, 0, DIRNAMELEN);
     block_entry->dirty = 1;
-    printf("block_entry->block_number: %d\n", block_entry->block_number);
     parent_inode->size += DIRSIZE;
     return 1;
 }
@@ -624,6 +634,21 @@ void CreateFile(void *packet, int pid, short type) {
     if (target_inum > 0) {
         new_inode = TruncateFileInode(target_inum);
     } else {
+        /* If no free inode to spare, error */
+        if (free_inode_list->size == 0) {
+            ((FilePacket *)packet)->inum = -3;
+            return;
+        }
+
+        /*
+         * Creating a directory will require 1 block.
+         * Adding it to parent inode may require 2 blocks.
+         */
+        if (free_block_list->size < 3) {
+            ((FilePacket *)packet)->inum = -4;
+            return;
+        }
+
         // Create new file if not found
         target_inum = PopFromBuffer(free_inode_list);
         new_inode = CreateFileInode(target_inum, parent_inum, type);
@@ -631,10 +656,12 @@ void CreateFile(void *packet, int pid, short type) {
         /* Child directory refers to parent via .. */
         if (type == INODE_DIRECTORY) parent_inode->nlink += 1;
         parent_entry->dirty = RegisterDirectory(parent_inode, target_inum, dirname);
+
         if (DEBUG) {
             printf("Printing parent inode %d after creating new file\n", parent_inum);
             PrintInode(parent_inode);
         }
+
         new_inode->nlink += 1;
     }
 
@@ -643,7 +670,6 @@ void CreateFile(void *packet, int pid, short type) {
     ((FilePacket *)packet)->size = new_inode->size;
     ((FilePacket *)packet)->nlink = new_inode->nlink;
     ((FilePacket *)packet)->reuse = new_inode->reuse;
-    return;
 }
 
 void ReadFile(DataPacket *packet, int pid) {
@@ -668,6 +694,11 @@ void ReadFile(DataPacket *packet, int pid) {
     inode = GetInode(inum)->inode;
     if (inode->reuse != reuse) {
         packet->arg1 = -1;
+        return;
+    }
+
+    if (inode->type == INODE_FREE) {
+        packet->arg1 = -2;
         return;
     }
 
@@ -792,6 +823,7 @@ void WriteFile(DataPacket *packet, int pid) {
         return;
     }
 
+    struct block_cache_entry *indirect_block_entry;
     int *indirect_block = NULL;
     int inode_block_count = GetBlockCount(inode->size);
     int start_index = pos / BLOCKSIZE; /* Block index where writing starts */
@@ -820,14 +852,43 @@ void WriteFile(DataPacket *packet, int pid) {
         printf("inode_block_count: %d\n", inode_block_count);
     }
 
+    /* Test compute number of additional blocks needed */
+    int extra_blocks = 0;
+    int i;
+
+    for (i = start_index; i <= end_index; i++) {
+        /* Increase the size if current index is less than or equal to block count */
+        if (inode_block_count <= i) {
+            /* If i is at NUM_DIRECT, it is about to create indirect */
+            if (i == NUM_DIRECT) extra_blocks++;
+
+            /* Assign new block if size increased AND is part of writing range */
+            if (i >= start_index) extra_blocks++;
+        }
+    }
+
+    if (free_block_list->size <= extra_blocks) {
+        ((FilePacket *)packet)->inum = -4;
+        return;
+    }
+
     for (; outer_index <= end_index; outer_index++) {
         /* Increase the size if current index is less than or equal to block count */
         if (inode_block_count <= outer_index) {
             /* If i is at NUM_DIRECT, it is about to create indirect */
             if (outer_index == NUM_DIRECT) {
                 inode->indirect = PopFromBuffer(free_block_list);
-                indirect_block = GetBlock(inode->indirect)->block;
+                indirect_block_entry = GetBlock(inode->indirect);
+                indirect_block = indirect_block_entry->block;
+                indirect_block_entry->dirty = 1;
                 memset(indirect_block, 0, BLOCKSIZE);
+            }
+
+            /* Constantly get indirect block since it gets dirty many times */
+            if (outer_index > NUM_DIRECT) {
+                indirect_block_entry = GetBlock(inode->indirect);
+                indirect_block = indirect_block_entry->block;
+                indirect_block_entry->dirty = 1;
             }
 
             /* Assign new block if size increased AND is part of writing range */
@@ -835,12 +896,13 @@ void WriteFile(DataPacket *packet, int pid) {
                 if (outer_index >= NUM_DIRECT) {
                     /* Create new block in indirect block. */
                     indirect_block[outer_index - NUM_DIRECT] = PopFromBuffer(free_block_list);
+                    if (DEBUG) printf("Create new block for indirect: %d (block: %d)\n", outer_index - NUM_DIRECT, indirect_block[outer_index - NUM_DIRECT]);
                     block = GetBlock(indirect_block[outer_index - NUM_DIRECT])->block;
                     memset(block, 0, BLOCKSIZE);
                 } else {
                     /* Create new block at direct */
                     inode->direct[outer_index] = PopFromBuffer(free_block_list);
-                    if (DEBUG) printf("Create new block at outer_index: %d\n", outer_index);
+                    if (DEBUG) printf("Create new block at outer_index: %d (block: %d)\n", outer_index, inode->direct[outer_index]);
                     block = GetBlock(inode->direct[outer_index])->block;
                     memset(block, 0, BLOCKSIZE);
                     inode_entry->dirty = 1;
@@ -1041,6 +1103,15 @@ void CreateLink(DataPacket *packet, int pid) {
     /* Already checked by client but just to be sure */
     if (parent_inode->type != INODE_DIRECTORY) {
         packet->arg1 = -3;
+        return;
+    }
+
+    /*
+     * Creating a directory will require 1 block.
+     * Adding it to parent inode may require 2 blocks.
+     */
+    if (free_block_list->size < 2) {
+        packet->arg1 = -4;
         return;
     }
 
