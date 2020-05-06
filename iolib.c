@@ -713,7 +713,6 @@ int Sync() {
  */
 int Shutdown() {
     /* Create new file or truncate existing file */
-    int success;
     void *packet = malloc(PACKET_SIZE);
     ((DataPacket *)packet)->packet_type = MSG_SYNC;
     ((DataPacket *)packet)->arg1 = 1; /* Shut down */

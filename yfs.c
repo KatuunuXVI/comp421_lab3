@@ -4,7 +4,6 @@
 #include <assert.h>
 #include <comp421/yalnix.h>
 #include <comp421/filesystem.h>
-#include "yfs.h"
 #include "cache.h"
 #include "buffer.h"
 #include "path.h"
@@ -588,8 +587,6 @@ void SearchFile(void *packet, int pid) {
     ((FilePacket *)packet)->size = target_inode->size;
     ((FilePacket *)packet)->nlink = target_inode->nlink;
     ((FilePacket *)packet)->reuse = target_inode->reuse;
-
-    return 0;
 }
 
 void CreateFile(void *packet, int pid, short type) {
