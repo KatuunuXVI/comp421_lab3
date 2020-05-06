@@ -1,5 +1,5 @@
 /*
- * Automated test 1
+ * Automated test. Run TestAutoCleanUp after this.
  */
 
 #include <stdio.h>
@@ -7,9 +7,12 @@
 #include <string.h>
 
 #include <comp421/iolib.h>
+#include <comp421/filesystem.h>
+#include <comp421/yalnix.h>
 
-#define ERROR    -1
+
 #define SUCCESS  0
+#define MAX_FILE_SIZE (NUM_DIRECT * BLOCKSIZE + (BLOCKSIZE / sizeof(int) * BLOCKSIZE))
 
 
 /* Helper Functions */
@@ -28,12 +31,25 @@ int Seek_Wrapper(int fd, int offset, int whence);
 
 
 int main() {
-    int i;
+    unsigned int i;
     int status;
     int bytes;
+    int pid;
     int fd_0, fd_1, fd_2, fd_3, fd_4;
     char *content_1024;
+    char content_max[MAX_FILE_SIZE + 1];
+    char content_exceeds_max[MAX_FILE_SIZE + 2];
     char *buf;
+
+    for (i = 0; i < MAX_FILE_SIZE; i++) {
+        *(content_max + i) = (char)(i % 255 + 1);
+    }
+    *(content_max + MAX_FILE_SIZE) = '\0';
+
+    for (i = 0; i < MAX_FILE_SIZE + 1; i++) {
+        *(content_exceeds_max + i) = (char)(i % 255 + 1);
+    }
+    *(content_exceeds_max + MAX_FILE_SIZE + 1) = '\0';
 
     content_1024 = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Morbi mollis ultricies ligula suscipit molestie. Maecenas non lacinia quam. Sed posuere imperdiet tempus. Nam dignissim magna luctus ipsum dictum lacinia. Duis porttitor sagittis eros, et tincidunt purus mollis in. Praesent a posuere est. Quisque blandit augue eget odio convallis euismod. Sed quis lacus nulla. Maecenas id erat ex. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Curabitur quis dolor nec elit elementum imperdiet. Duis enim ante, imperdiet non tincidunt eget, dictum ut odio. Aliquam vulputate ultricies molestie. Donec scelerisque felis non arcu feugiat, sit amet consectetur mi scelerisque. Aenean orci eros, interdum pretium felis id, vulputate dignissim quam. Etiam ultrices egestas dolor ut cursus. Etiam rutrum nibh non sem sodales rhoncus. Sed tortor libero, venenatis blandit tempor id, vehicula a nisl. Sed nisl nunc, lacinia at ligula sit amet, congue elementum tortor. In at porttitor ex, eget proin";
     buf = malloc(9999);
@@ -172,9 +188,29 @@ int main() {
     if ( (status = MkDir_Wrapper(content_1024)) == SUCCESS ) { Shutdown(); return ERROR; }
     if ( (status = Link_Wrapper("/folder1/subfolder1/1.txt", content_1024)) == SUCCESS ) { Shutdown(); return ERROR; }
 
+    if ( (fd_1 = Create_Wrapper("a.txt")) == ERROR ) { Shutdown(); return ERROR; }
+    if ( (bytes = Write_Wrapper(fd_0, content_exceeds_max, strlen(content_exceeds_max))) >= 0 ) { Shutdown(); return ERROR; }
+    if ( (bytes = Write_Wrapper(fd_0, content_max, strlen(content_max))) != (int)strlen(content_max) ) { Shutdown(); return ERROR; }
 
+    if ( (fd_1 = Open_Wrapper("a.txt")) == ERROR ) { Shutdown(); return ERROR; }
+    printf("Forking...\n");
+    pid = Fork();
+    if (pid == 0) {
+        // Child
+        printf("Child...\n");
+        if ( (status = Unlink_Wrapper("a.txt")) == ERROR ) { Shutdown(); return ERROR; }
+        if ( (Create_Wrapper("a.txt")) == ERROR ) { Shutdown(); return ERROR; }
+        Exit(123);
+    }
+    else {
+        // Parent
+        Wait(&status);
+        printf("Parent...\n");
+        if ( (bytes = Read_Wrapper(fd_1, buf, 10)) >= 0 ) { Shutdown(); return ERROR; }
+    }
 
-    printf("TEST PASSED!\n");
+    if ( (status = Unlink_Wrapper("a.txt")) == ERROR ) { Shutdown(); return ERROR; }
+    printf("ALL PASSED!\n");
     Shutdown();
 
     return 0;

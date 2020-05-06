@@ -37,7 +37,7 @@ int PopFromBuffer(struct buffer *buf) {
     if (buf->empty) {
         return '\0';
     }
-    char next = buf->b[buf->out];
+    int next = buf->b[buf->out];
     buf->out++;
     if (buf->out >= buf->size) {
         buf->out = 0;
